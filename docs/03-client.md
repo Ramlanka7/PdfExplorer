@@ -28,15 +28,24 @@ interface AppState {
   readonly childIds: ReadonlyMap<ItemId, ItemId[]>;     // parent -> ordered children
   readonly rootIds: readonly ItemId[];
 
+  readonly rootLoadState: LoadState;
+  readonly rootError: UserFacingError | null;
+
   readonly expandedFolders: ReadonlySet<ItemId>;
   readonly folderLoadState: ReadonlyMap<ItemId, LoadState>;  // FR-LAZY-05
-  readonly folderErrors: ReadonlyMap<ItemId, string>;
+  readonly folderErrors: ReadonlyMap<ItemId, UserFacingError>;
 
   readonly selectedPdfId: ItemId | null;
   readonly pdfLoading: boolean;
-  readonly pdfError: string | null;
+  readonly pdfError: UserFacingError | null;
+  readonly pdfDocument: PdfDocument | null;
 }
 ```
+
+Errors are held as `{ message, retryable, correlationId }` rather than a bare string: whether a
+Retry affordance appears at all comes from the error envelope's code (`NFR-ERR-04`), so the flag
+has to travel with the message. The open document lives in the store so the viewer stays a pure
+renderer; its lifecycle stays in the controller, because the reducer must remain pure.
 
 Flat maps, not a nested tree: expanding a deep node mutates two small maps instead of cloning a
 spine of nested objects (`NFR-PERF-03`). The visible list is derived by a selector that walks
@@ -66,7 +75,9 @@ The cache **is** the `childIds` map. A second cache would be duplicated state.
 ```ts
 interface FolderService {
   getRootItems(signal?: AbortSignal): Promise<TreeNode[]>;
-  getChildren(folderId: ItemId, signal?: AbortSignal): Promise<TreeNode[]>;
+  // parentDepth is the expanded folder's own depth; TreeNode.depth is set here, at the single
+  // place a DTO becomes a TreeNode, rather than recomputed by every consumer.
+  getChildren(folderId: ItemId, parentDepth: number, signal?: AbortSignal): Promise<TreeNode[]>;
 }
 
 interface PdfService {
@@ -105,7 +116,9 @@ canvas we control, reports load failure as a typed error, and streams large file
 // src/Client/pdf/ — the ONLY place importing pdfjs-dist
 export interface PdfDocument {
   readonly pageCount: number;
+  getPageSize(pageNumber: number): Promise<PageSize>;   // fit modes need it (FR-PDF-06)
   renderPage(pageNumber: number, target: HTMLCanvasElement, scale: number): Promise<void>;
+  releasePage(pageNumber: number): void;                // NFR-PERF-05
   destroy(): void;
 }
 
