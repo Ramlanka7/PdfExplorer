@@ -5,8 +5,11 @@ using Server.Providers;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
-builder.Services.AddSingleton<IFolderProvider, MockFolderProvider>();
-builder.Services.AddSingleton<IPdfProvider, MockPdfProvider>();
+builder.Services.AddSingleton<FolderSourceState>();
+builder.Services.AddSingleton<SelectableStorageProvider>();
+builder.Services.AddSingleton<IFolderProvider>(sp => sp.GetRequiredService<SelectableStorageProvider>());
+builder.Services.AddSingleton<IPdfProvider>(sp => sp.GetRequiredService<SelectableStorageProvider>());
+builder.Services.AddSingleton<IFolderBrowseService, WindowsFolderBrowseService>();
 
 var app = builder.Build();
 

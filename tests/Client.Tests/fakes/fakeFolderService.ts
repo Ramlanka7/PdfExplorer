@@ -27,6 +27,12 @@ export interface FakeFolderService extends FolderService {
   release(key: string): void;
   /** Makes the next request for `key` reject. */
   failNext(key: string, error: unknown): void;
+  /** How many times browseForSource() was called. */
+  readonly browseCalls: number;
+  /** Makes the next browseForSource() resolve as if the user closed the dialog without picking anything. */
+  cancelNextBrowse(): void;
+  /** How many times clearSource() was called. */
+  readonly clearCalls: number;
 }
 
 interface Gate {
@@ -41,6 +47,9 @@ export function createFakeFolderService(roots: readonly FakeItem[]): FakeFolderS
   const requests: string[] = [];
   const gates = new Map<string, Gate>();
   const failures = new Map<string, unknown>();
+  let browseCalls = 0;
+  let nextBrowseCanceled = false;
+  let clearCalls = 0;
 
   async function respond(key: string, produce: () => readonly TreeNode[]): Promise<readonly TreeNode[]> {
     requests.push(key);
@@ -58,6 +67,31 @@ export function createFakeFolderService(roots: readonly FakeItem[]): FakeFolderS
 
   return {
     requests,
+
+    async browseForSource() {
+      browseCalls += 1;
+      if (nextBrowseCanceled) {
+        nextBrowseCanceled = false;
+        return false;
+      }
+      return true;
+    },
+
+    get browseCalls() {
+      return browseCalls;
+    },
+
+    cancelNextBrowse() {
+      nextBrowseCanceled = true;
+    },
+
+    async clearSource() {
+      clearCalls += 1;
+    },
+
+    get clearCalls() {
+      return clearCalls;
+    },
 
     countOf(key) {
       return requests.filter((request) => request === key).length;

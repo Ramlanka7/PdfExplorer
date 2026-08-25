@@ -44,6 +44,57 @@ export async function getJson(url: string, options: GetJsonOptions): Promise<unk
   }
 }
 
+export interface PostOptions {
+  readonly signal?: AbortSignal;
+  readonly notFoundCode: ApiErrorCode;
+}
+
+/**
+ * POST with no request body, for an action whose only outcomes are "did something" (200) or "the
+ * user backed out, nothing changed" (204 - not a failure, so it never throws for it; NFR-ERR-04).
+ */
+export async function postForSelection(url: string, options: PostOptions): Promise<boolean> {
+  let response: Response;
+  try {
+    const init: RequestInit = {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    };
+    if (options.signal !== undefined) init.signal = options.signal;
+    response = await fetch(url, init);
+  } catch (cause) {
+    if (isAbortError(cause)) throw cause;
+    throw new ApiError('NETWORK', { cause });
+  }
+
+  if (response.status === 204) return false;
+  if (!response.ok) throw await errorFromResponse(response, options.notFoundCode);
+  return true;
+}
+
+/**
+ * DELETE with no request body and no response payload — for an action that either happened (2xx)
+ * or failed outright; unlike postForSelection there is no "user backed out" outcome to distinguish.
+ */
+export async function deleteResource(url: string, options: PostOptions): Promise<void> {
+  let response: Response;
+  try {
+    const init: RequestInit = {
+      method: 'DELETE',
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    };
+    if (options.signal !== undefined) init.signal = options.signal;
+    response = await fetch(url, init);
+  } catch (cause) {
+    if (isAbortError(cause)) throw cause;
+    throw new ApiError('NETWORK', { cause });
+  }
+
+  if (!response.ok) throw await errorFromResponse(response, options.notFoundCode);
+}
+
 async function errorFromResponse(response: Response, notFound: ApiErrorCode): Promise<ApiError> {
   const envelope = await readEnvelope(response);
   const code = isApiErrorCode(envelope?.code) ? envelope.code : codeForStatus(response.status, notFound);

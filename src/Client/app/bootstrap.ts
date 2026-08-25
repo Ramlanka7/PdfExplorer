@@ -44,6 +44,8 @@ export function bootstrap(root: HTMLElement, dependencies: AppDependencies): App
   const controller = createExplorerController({ store, ...dependencies });
 
   const app = createApp({
+    onBrowseSource: () => void controller.browseForSource(),
+    onClearSource: () => void controller.clearSource(),
     onToggleFolder: (folderId) => void controller.toggleFolder(folderId),
     onSelectPdf: (pdfId) => void controller.selectPdf(pdfId),
     onRetryFolder: (folderId) => void controller.retryFolder(folderId),

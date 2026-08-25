@@ -23,6 +23,10 @@ public sealed class ApiExceptionMiddleware(RequestDelegate next)
 
   private static (int Status, string Code, string Message) Map(Exception exception) => exception switch
   {
+    InvalidSourceException => (
+      StatusCodes.Status400BadRequest,
+      "SOURCE_INVALID",
+      "Select an existing folder that this app can read."),
     ItemNotFoundException notFound => (StatusCodes.Status404NotFound, notFound.Code, "That folder is no longer available."),
     ItemAccessDeniedException => (StatusCodes.Status403Forbidden, "FORBIDDEN", "You don't have access to this item."),
     ProviderUnavailableException => (

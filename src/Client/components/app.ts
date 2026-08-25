@@ -5,6 +5,8 @@ import { createFolderTree } from './folderTree';
 import { createPdfViewer } from './pdfViewer';
 
 export interface AppCallbacks {
+  readonly onBrowseSource: () => void;
+  readonly onClearSource: () => void;
   readonly onToggleFolder: (folderId: ItemId) => void;
   readonly onSelectPdf: (pdfId: ItemId) => void;
   readonly onRetryFolder: (folderId: ItemId) => void;
@@ -20,6 +22,8 @@ export function createApp(callbacks: AppCallbacks): Component<AppState> {
   const element = el('div', { className: 'app' });
 
   const tree = createFolderTree({
+    onBrowseSource: callbacks.onBrowseSource,
+    onClearSource: callbacks.onClearSource,
     onToggleFolder: callbacks.onToggleFolder,
     onSelectPdf: callbacks.onSelectPdf,
     onRetryFolder: callbacks.onRetryFolder,

@@ -11,11 +11,16 @@ public sealed class ApiTestFactory : WebApplicationFactory<Program>
 {
   private readonly IFolderProvider? folderProviderOverride;
   private readonly IPdfProvider? pdfProviderOverride;
+  private readonly IFolderBrowseService? browseServiceOverride;
 
-  public ApiTestFactory(IFolderProvider? folderProviderOverride = null, IPdfProvider? pdfProviderOverride = null)
+  public ApiTestFactory(
+    IFolderProvider? folderProviderOverride = null,
+    IPdfProvider? pdfProviderOverride = null,
+    IFolderBrowseService? browseServiceOverride = null)
   {
     this.folderProviderOverride = folderProviderOverride;
     this.pdfProviderOverride = pdfProviderOverride;
+    this.browseServiceOverride = browseServiceOverride;
   }
 
   protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -34,8 +39,20 @@ public sealed class ApiTestFactory : WebApplicationFactory<Program>
         services.RemoveAll<IPdfProvider>();
         services.AddSingleton(pdfProviderOverride);
       }
+
+      if (browseServiceOverride is not null)
+      {
+        services.RemoveAll<IFolderBrowseService>();
+        services.AddSingleton(browseServiceOverride);
+      }
     });
   }
+}
+
+/// <summary>Stands in for the native dialog: never shows UI, just returns what the test wants.</summary>
+public sealed class FakeFolderBrowseService(string? result) : IFolderBrowseService
+{
+  public Task<string?> BrowseForFolderAsync(CancellationToken cancellationToken) => Task.FromResult(result);
 }
 
 public sealed class CursorFolderProvider : IFolderProvider

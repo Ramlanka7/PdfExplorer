@@ -25,6 +25,10 @@ import { folderLoadStateOf, type AppState, type ItemId, type TreeNode } from '..
  * and re-render from the store.
  */
 export interface ExplorerController {
+  /** Shows the native folder picker; a no-op reload if the user cancels it. */
+  browseForSource(): Promise<void>;
+  /** Drops the current source and returns the tree to its empty, no-folder-picked state. */
+  clearSource(): Promise<void>;
   loadRoots(): Promise<void>;
   /** FR-EXP-07: one behaviour shared by the row and the chevron. */
   toggleFolder(folderId: ItemId): Promise<void>;
@@ -113,6 +117,44 @@ export function createExplorerController(deps: ExplorerControllerDeps): Explorer
   }
 
   return {
+    async browseForSource() {
+      // Nothing changes while the dialog is open, or if the user backs out of it - the tree
+      // stays exactly as it was, with no loading flicker (FR-LAZY-01 in spirit).
+      let selected: boolean;
+      try {
+        selected = await folderService.browseForSource();
+      } catch (error) {
+        store.dispatch(rootsFailed(describeError(error)));
+        return;
+      }
+      if (!selected) return;
+
+      store.dispatch(rootsLoading());
+      try {
+        store.dispatch(rootsLoaded(await folderService.getRootItems()));
+      } catch (error) {
+        store.dispatch(rootsFailed(describeError(error)));
+      }
+    },
+
+    async clearSource() {
+      try {
+        await folderService.clearSource();
+      } catch (error) {
+        // Clearing has nothing to retry (there is no source to fail to reach any more), so
+        // there is nothing worth surfacing to the user - the pane just returns to its
+        // no-source state below either way. Diagnostic only (NFR-ERR-06).
+        console.error('[PdfExplorer] clearSource failed', error);
+      }
+      // The document open in the viewer, if any, belongs to a source that no longer applies
+      // (NFR-PERF-06) - dropped the same way a fresh selection replaces one (FR-PDF-09).
+      pdfRequestToken += 1;
+      pdfAbort?.abort();
+      pdfAbort = null;
+      releaseOpenDocument();
+      store.dispatch(rootsLoaded([]));
+    },
+
     async loadRoots() {
       // FR-LAZY-01: the initial load fetches root items only. Nothing else runs at startup, and
       // no PDF is touched until the user selects one (NFR-PERF-04).

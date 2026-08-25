@@ -13,6 +13,8 @@ export interface FolderTreeProps {
 }
 
 export interface FolderTreeCallbacks {
+  readonly onBrowseSource: () => void;
+  readonly onClearSource: () => void;
   readonly onToggleFolder: (folderId: ItemId) => void;
   readonly onSelectPdf: (pdfId: ItemId) => void;
   readonly onRetryFolder: (folderId: ItemId) => void;
@@ -44,6 +46,21 @@ interface RowEntry {
 export function createFolderTree(callbacks: FolderTreeCallbacks): Component<FolderTreeProps> {
   const element = el('div', { className: 'pane pane--tree' });
 
+  const sourcePicker = el('div', { className: 'source-picker' });
+  const sourceOpenButton = el('button', {
+    className: 'button button--primary source-picker__button',
+    text: 'Browse…',
+    attrs: { type: 'button' },
+  });
+  sourceOpenButton.addEventListener('click', () => callbacks.onBrowseSource());
+  const sourceClearButton = el('button', {
+    className: 'button button--secondary source-picker__clear',
+    text: 'Clear',
+    attrs: { type: 'button' },
+  });
+  sourceClearButton.addEventListener('click', () => callbacks.onClearSource());
+  sourcePicker.append(sourceOpenButton, sourceClearButton);
+
   const status = el('div', { className: 'pane__status', attrs: { role: 'status' } });
   const statusMessage = el('span', { className: 'pane__status-text' });
   const statusRetry = el('button', {
@@ -58,7 +75,7 @@ export function createFolderTree(callbacks: FolderTreeCallbacks): Component<Fold
     className: 'tree',
     attrs: { role: 'tree', 'aria-label': 'Folders and PDF files' },
   });
-  element.append(status, list);
+  element.append(sourcePicker, status, list);
 
   const entries = new Map<string, RowEntry>();
   let descriptors: readonly RowDescriptor[] = [];
@@ -243,6 +260,9 @@ export function createFolderTree(callbacks: FolderTreeCallbacks): Component<Fold
     if (loading) setText(statusMessage, 'Loading folders...');
     else if (failed) setText(statusMessage, props.rootError?.message ?? 'Folders are unavailable.');
     else if (empty) setText(statusMessage, 'No folders or PDF files here.');
+    // Loaded with rows: the bar is hidden, but clear the text anyway so nothing stale is left for
+    // a screen reader or a later bug to surface.
+    else setText(statusMessage, '');
 
     // NFR-ERR-04: retry is offered only where retrying can plausibly succeed.
     setHidden(statusRetry, !(failed && (props.rootError?.retryable ?? true)));
