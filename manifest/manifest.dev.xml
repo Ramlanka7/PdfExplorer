@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Dev-origin manifest (docs/decisions.md D6). Points at the Vite dev server, which serves the
+  task pane over HTTPS and proxies /api to Kestrel (D3) so the pane sees one origin.
+
+  Every URL below must match <AppDomains> or Office blocks it (docs/04-office.md). The ONLY
+  difference from manifest.xml is meant to be the origin — see the office-addin-dev skill for
+  sideloading and cache-clearing steps.
+-->
+<OfficeApp
+  xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+  xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
+  xsi:type="TaskPaneApp">
+
+  <Id>f349e582-a5e5-4ba0-aeaa-6272d8b6ded3</Id>
+  <Version>1.0.0.0</Version>
+  <ProviderName>PdfExplorer</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+  <DisplayName DefaultValue="PDF Explorer (dev)" />
+  <Description DefaultValue="Browse a folder tree and preview PDFs without leaving Excel. Dev build, served from the local Vite server." />
+  <IconUrl DefaultValue="https://localhost:3000/icons/icon-32.png" />
+  <HighResolutionIconUrl DefaultValue="https://localhost:3000/icons/icon-64.png" />
+  <SupportUrl DefaultValue="https://localhost:3000/taskpane.html" />
+
+  <AppDomains>
+    <AppDomain>https://localhost:3000</AppDomain>
+  </AppDomains>
+
+  <Hosts>
+    <Host Name="Workbook" />
+  </Hosts>
+
+  <DefaultSettings>
+    <SourceLocation DefaultValue="https://localhost:3000/taskpane.html" />
+  </DefaultSettings>
+
+  <!-- The pane never reads or writes workbook data (docs/04-office.md); it only awaits
+       Office.onReady. Least privilege, not a placeholder. -->
+  <Permissions>Restricted</Permissions>
+
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <Hosts>
+      <Host xsi:type="Workbook">
+        <DesktopFormFactor>
+          <GetStarted>
+            <Title resid="GetStarted.Title" />
+            <Description resid="GetStarted.Description" />
+            <LearnMoreUrl resid="GetStarted.LearnMoreUrl" />
+          </GetStarted>
+          <FunctionFile resid="Taskpane.Url" />
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <OfficeTab id="TabHome">
+              <Group id="PdfExplorer.Group">
+                <Label resid="PdfExplorer.Group.Label" />
+                <Icon>
+                  <bt:Image size="16" resid="Icon.16x16" />
+                  <bt:Image size="32" resid="Icon.32x32" />
+                  <bt:Image size="80" resid="Icon.80x80" />
+                </Icon>
+                <Control xsi:type="Button" id="PdfExplorer.TaskpaneButton">
+                  <Label resid="PdfExplorer.TaskpaneButton.Label" />
+                  <Supertip>
+                    <Title resid="PdfExplorer.TaskpaneButton.Label" />
+                    <Description resid="PdfExplorer.Button.Tip" />
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16x16" />
+                    <bt:Image size="32" resid="Icon.32x32" />
+                    <bt:Image size="80" resid="Icon.80x80" />
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <TaskpaneId>PdfExplorer.Taskpane</TaskpaneId>
+                    <SourceLocation resid="Taskpane.Url" />
+                  </Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+
+    <Resources>
+      <bt:Images>
+        <bt:Image id="Icon.16x16" DefaultValue="https://localhost:3000/icons/icon-16.png" />
+        <bt:Image id="Icon.32x32" DefaultValue="https://localhost:3000/icons/icon-32.png" />
+        <bt:Image id="Icon.80x80" DefaultValue="https://localhost:3000/icons/icon-80.png" />
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://localhost:3000/taskpane.html" />
+        <bt:Url id="Taskpane.Url" DefaultValue="https://localhost:3000/taskpane.html" />
+      </bt:Urls>
+      <bt:ShortStrings>
+        <bt:String id="GetStarted.Title" DefaultValue="Get started with PDF Explorer" />
+        <bt:String id="PdfExplorer.Group.Label" DefaultValue="PDF Explorer" />
+        <bt:String id="PdfExplorer.TaskpaneButton.Label" DefaultValue="PDF Explorer" />
+      </bt:ShortStrings>
+      <bt:LongStrings>
+        <bt:String id="GetStarted.Description" DefaultValue="Browse folders and preview PDFs in the task pane." />
+        <bt:String id="PdfExplorer.Button.Tip" DefaultValue="Open the PDF Explorer task pane" />
+      </bt:LongStrings>
+    </Resources>
+  </VersionOverrides>
+</OfficeApp>
