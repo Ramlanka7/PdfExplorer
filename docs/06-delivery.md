@@ -63,7 +63,7 @@ Maintained by the `requirements-auditor`; regenerate with `/trace`.
 
 | Date | Phase | Host / build | Checked | Result | By |
 | --- | --- | --- | --- | --- | --- |
-| | | | | | |
+| 2026-08-25 | 2 | Excel on Windows desktop (Microsoft 365, WebView2) | Sideload via `manifest/manifest.dev.xml` against the Vite dev server; task pane opens from the ribbon; PDF renders in the pane (`FR-OFC-06`, `DOD-02`, `DOD-03`, `DOD-09`) | Pass | Ram Lanka / Claude Code |
 
 ### Known gaps
 

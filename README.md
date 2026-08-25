@@ -39,6 +39,31 @@ secondary.
 - **Next proof point:** Phase 2 delivers the thinnest end-to-end slice with mock data in a real
   Excel task pane.
 
+## Running Locally & Testing in Excel
+
+Two terminals for the app, a third to sideload:
+
+```bash
+dotnet run --project src/Server        # API (Kestrel, https://localhost:7178)
+npm --prefix src/Client run dev        # Vite dev server (https://localhost:3000)
+```
+
+Then sideload the dev manifest into Excel (`office-addin-debugging` must run from `src/Client`,
+where its `package.json` is):
+
+```powershell
+cd src/Client
+npx office-addin-debugging start ../../manifest/manifest.dev.xml --no-debug
+```
+
+Excel launches with the add-in registered — click **PDF Explorer** on the Home ribbon tab to open
+the task pane. To unregister: `npx office-addin-debugging stop ../../manifest/manifest.dev.xml`
+(same directory).
+
+If the pane shows an "ADD-IN ERROR / network connectivity" dialog, its own Retry button is
+unreliable — close the task pane and click **PDF Explorer** again instead. Full prerequisites
+(dev certs, WebView2, manifest validation, cache clearing) are in the `office-addin-dev` skill.
+
 ## Read In This Order
 
 - [docs/reviewer-guide.md](docs/reviewer-guide.md) — one-page reviewer summary
