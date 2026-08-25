@@ -15,6 +15,34 @@ never as done.**
 
 ---
 
+## Phase execution checklist
+
+Use this checklist before running `/phase-gate <n>`.
+
+### Common (all phases)
+
+- [ ] Scope implemented exactly as listed for phase `n`
+- [ ] Requirements for phase `n` mapped to concrete code changes
+- [ ] Automated tests updated or added for every automatable requirement
+- [ ] Manual verification items identified and scheduled
+- [ ] Evidence artifacts prepared (commands, logs, screenshots, commit IDs)
+
+### Gate command checklist
+
+- [ ] `dotnet build PdfExplorer.slnx`
+- [ ] `dotnet test`
+- [ ] `npm --prefix src/Client run lint`
+- [ ] `npm --prefix src/Client test`
+- [ ] Run `phase-gate` ritual for current phase and record outcomes below
+
+### Evidence to record per phase
+
+- Build result summary:
+- Test result summary (server/client):
+- Requirement IDs verified in this phase:
+- Manual Excel checks completed:
+- Known gaps carried forward:
+
 ## Traceability
 
 Maintained by the `requirements-auditor`; regenerate with `/trace`.
