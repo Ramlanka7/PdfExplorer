@@ -115,6 +115,16 @@ describe('client architecture', () => {
     expect(offenders(SOURCE_FILES, /\.innerHTML\s*=|\.outerHTML\s*=/)).toEqual([]);
   });
 
+  it('contains no top-frame navigation or popup assumptions (FR-OFC-05)', () => {
+    expect(offenders(SOURCE_FILES, /\bwindow\.open\b|\btop\.location\b|\bparent\.location\b/)).toEqual(
+      [],
+    );
+  });
+
+  it('contains no eval-style dynamic code execution (FR-OFC-05)', () => {
+    expect(offenders(SOURCE_FILES, /\beval\s*\(|\bnew\s+Function\s*\(/)).toEqual([]);
+  });
+
   it('uses no untyped escape hatch (NFR-CODE-04)', () => {
     expect(offenders(SOURCE_FILES, /:\s*any\b|<any>|\bas\s+any\b/)).toEqual([]);
   });
