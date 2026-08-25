@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet build:*)",
+      "Bash(dotnet test:*)",
+      "Bash(dotnet restore:*)",
+      "Bash(dotnet format:*)",
+      "Bash(npm --prefix src/Client run build)",
+      "Bash(npm --prefix src/Client run lint)",
+      "Bash(npm --prefix src/Client test:*)",
+      "Bash(npx office-addin-manifest validate:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)"
+    ],
+    "deny": []
+  }
+}
