@@ -28,6 +28,10 @@ export function reducer(state: AppState, action: Action): AppState {
         expandedFolders: new Set(),
         folderLoadState: new Map(),
         folderErrors: new Map(),
+        selectedPdfId: null,
+        pdfLoading: false,
+        pdfError: null,
+        pdfDocument: null,
       };
     }
 

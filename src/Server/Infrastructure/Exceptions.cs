@@ -10,3 +10,5 @@ public class ItemAccessDeniedException : Exception;
 public class ProviderUnavailableException : Exception;
 
 public class InvalidPdfException : Exception;
+
+public class InvalidSourceException : Exception;

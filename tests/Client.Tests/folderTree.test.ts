@@ -237,6 +237,45 @@ describe('folder tree', () => {
     expect(app.state().expandedFolders.has(id('f_reports'))).toBe(false);
   });
 
+  it('re-requests root items after the folder picker returns a selection', async () => {
+    const openButton = app.query<HTMLButtonElement>('.source-picker__button');
+    expect(openButton).not.toBeNull();
+
+    openButton!.click();
+    await flush();
+
+    expect(app.folders.browseCalls).toBe(1);
+    expect(app.folders.requests).toEqual([ROOT_REQUEST, ROOT_REQUEST]);
+  });
+
+  it('clears the tree and drops the open source when Clear is clicked', async () => {
+    await app.click('f_contracts');
+    const clearButton = app.query<HTMLButtonElement>('.source-picker__clear');
+    expect(clearButton).not.toBeNull();
+
+    clearButton!.click();
+    await flush();
+
+    expect(app.folders.clearCalls).toBe(1);
+    expect(app.rows()).toHaveLength(0);
+    expect(app.state().rootLoadState).toBe('loaded');
+    expect(app.state().expandedFolders.size).toBe(0);
+  });
+
+  it('leaves the tree untouched when the folder picker is canceled', async () => {
+    app.folders.cancelNextBrowse();
+    const openButton = app.query<HTMLButtonElement>('.source-picker__button');
+
+    openButton!.click();
+    await flush();
+
+    expect(app.folders.browseCalls).toBe(1);
+    // No reload was ever attempted - a cancel is not treated as a failure either.
+    expect(app.folders.requests).toEqual([ROOT_REQUEST]);
+    expect(app.state().rootLoadState).toBe('loaded');
+    expect(app.rows().map(app.nameOf)).toEqual(['Contracts', 'Reports', 'Archive', 'Readme.pdf']);
+  });
+
   it('keeps the rest of the UI usable when the root load fails (NFR-ERR-02, NFR-ERR-04)', async () => {
     const broken = mountApp(HIERARCHY);
     broken.folders.failNext(ROOT_REQUEST, new ApiError('NETWORK'));

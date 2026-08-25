@@ -7,6 +7,7 @@ import type { UserFacingError } from '../state/types';
  * a usable envelope at all.
  */
 export type ApiErrorCode =
+  | 'SOURCE_INVALID'
   | 'FOLDER_NOT_FOUND'
   | 'PDF_NOT_FOUND'
   | 'PDF_INVALID'
@@ -47,6 +48,10 @@ export class ApiError extends Error {
  * the envelope's code, never from string-matching (FR-PDF-11).
  */
 const PRESENTATION: Record<ApiErrorCode, { readonly message: string; readonly retryable: boolean }> = {
+  SOURCE_INVALID: {
+    message: 'Select an existing folder that this app can read.',
+    retryable: false,
+  },
   FOLDER_NOT_FOUND: { message: 'That folder is no longer available.', retryable: false },
   PDF_NOT_FOUND: { message: 'This file is no longer available.', retryable: false },
   PDF_INVALID: { message: "This file isn't a readable PDF.", retryable: false },

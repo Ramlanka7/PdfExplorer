@@ -30,6 +30,18 @@
   box-sizing: border-box;
 }
 
+/*
+ * Every pane sets its own unconditional `display` (flex/grid) on the elements it toggles with the
+ * `hidden` attribute, and an author rule always wins over the UA default `[hidden] { display:
+ * none }` at equal origin. Without this, setHidden() flips the DOM property but nothing ever
+ * disappears - which is exactly what made the tree pane's "Loading folders..." status stay on
+ * screen forever once shown, even after the folders had finished loading (FR-LAZY-01). One rule
+ * here keeps every future component honest instead of an `[hidden]` override per class.
+ */
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   height: 100%;
@@ -93,6 +105,20 @@ body {
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+.source-picker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 3px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.source-picker__button {
+  flex: 0 0 auto;
 }
 
 /* FR-UI-07: each pane scrolls independently. */
@@ -225,7 +251,10 @@ body {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 4px 12px;
+  /* Row-gap is deliberately larger than column-gap: a group that wraps to its own line (common
+     at task-pane widths, since three groups rarely fit on one row - FR-UI-09) needs enough
+     breathing room to read as a second toolbar row rather than a stray, cramped control. */
+  gap: 8px 10px;
   padding: 6px 8px;
   border-bottom: 1px solid var(--color-border);
   background: var(--color-surface);
@@ -238,7 +267,7 @@ body {
 }
 
 .toolbar__page-input {
-  width: 3.5em;
+  width: 3em;
   height: 24px;
   padding: 0 4px;
   border: 1px solid var(--color-border);
@@ -254,7 +283,7 @@ body {
 }
 
 .toolbar__zoom-label {
-  min-width: 3.5em;
+  min-width: 3em;
   text-align: center;
 }
 
@@ -285,14 +314,14 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
+  width: 24px;
   height: 24px;
   padding: 0;
 }
 
 .button--toggle {
   height: 24px;
-  padding: 0 8px;
+  padding: 0 6px;
 }
 
 .button--toggle.is-active {
@@ -306,6 +335,35 @@ body {
   border-color: var(--color-border);
   background: var(--color-surface);
   color: var(--color-accent);
+}
+
+/* The source picker's primary action (FR-EXP-*): larger than the toolbar buttons since it is the
+   first thing to interact with in an otherwise empty pane. */
+.button--primary {
+  height: 30px;
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 600;
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: #ffffff;
+}
+
+.button--primary:hover:not(:disabled) {
+  background: #0c5aa6;
+  border-color: #0c5aa6;
+}
+
+.button--secondary {
+  height: 30px;
+  padding: 0 14px;
+  border-color: var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.button--secondary:hover:not(:disabled) {
+  background: var(--color-hover);
 }
 
 /* FR-PDF-07: the viewer scrolls independently of the tree. */
@@ -381,6 +439,6 @@ body {
   }
 
   .toolbar {
-    gap: 4px 8px;
+    gap: 6px 6px;
   }
 }
