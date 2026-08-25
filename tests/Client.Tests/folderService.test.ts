@@ -72,6 +72,31 @@ describe('folderService', () => {
     expect(fetchStub.mock.calls[0]?.[0]).toBe('/api/folders/a%20b%2F..%2Fc%3Fd%23e/children');
   });
 
+  it('treats traversal-shaped folder ids as not-found when the API rejects them (NFR-SEC-06)', async () => {
+    const fetchStub = stubFetch(
+      envelope(404, 'FOLDER_NOT_FOUND'),
+      envelope(404, 'FOLDER_NOT_FOUND'),
+      envelope(404, 'FOLDER_NOT_FOUND'),
+    );
+    const service = createFolderService();
+
+    const traversalLikeIds = ['../secret', '/absolute/path', '..%2F..%2Ffinance'];
+    for (const rawId of traversalLikeIds) {
+      const failure = await service
+        .getChildren(asItemId(rawId), 0)
+        .catch((error: unknown) => error);
+
+      expect(failure).toBeInstanceOf(ApiError);
+      expect((failure as ApiError).code).toBe('FOLDER_NOT_FOUND');
+    }
+
+    expect(fetchStub.mock.calls.map((call) => call[0])).toEqual([
+      '/api/folders/..%2Fsecret/children',
+      '/api/folders/%2Fabsolute%2Fpath/children',
+      '/api/folders/..%252F..%252Ffinance/children',
+    ]);
+  });
+
   it('places children one level below their parent', async () => {
     stubFetch(page([FOLDER_ITEM]));
 
