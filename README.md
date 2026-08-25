@@ -4,54 +4,67 @@ An **Excel task-pane add-in** (Office.js + .NET 10 / ASP.NET Core) for browsing 
 and previewing PDFs without leaving Excel. Two panes: a lazy-loading folder tree on the left, a
 PDF.js viewer on the right.
 
-Status: **Phase 1 complete** (2026-08-25) — architecture ratified, decisions closed by
-[decisions D1–D6](docs/decisions.md). Next: Phase 2, the minimal vertical slice.
+Status: **Phase 1 complete** (2026-08-25). This repository state is **architecture and planning
+only**: requirements, constraints, seams, and delivery gates are documented, but the end-to-end
+add-in is **not committed yet**. Phase 2 is the first real vertical slice.
 
-Stack: vanilla TypeScript + Vite, same-origin ASP.NET Core (.NET 10), PDF.js, XML manifest.
-Target host: **Excel on Windows** (Microsoft 365 + WebView2); Excel on the web secondary.
+Planned stack: vanilla TypeScript + Vite, same-origin ASP.NET Core (.NET 10), PDF.js, XML
+manifest. Target host: **Excel on Windows** (Microsoft 365 + WebView2); Excel on the web is
+secondary.
 
-## Start here
+## If You're Reviewing This Repo
 
-- [CLAUDE.md](CLAUDE.md) — working rules and commands
-- [docs/01-requirements.md](docs/01-requirements.md) — the numbered source of truth
-- [docs/06-delivery.md](docs/06-delivery.md) — the five phases and the traceability matrix
-- [docs/decisions.md](docs/decisions.md) — why it's built this way
+- Start with [docs/reviewer-guide.md](docs/reviewer-guide.md) for the short version.
+- Treat this as a **POC architecture repo**, not a finished add-in or even a runnable slice yet.
+- The next milestone that matters is Phase 2: a real Excel task pane, mock folder tree, mock PDF,
+  and same-origin API working together.
 
-## AI workspace
+## What This POC Must Prove
 
-The repo is set up for agent-assisted development. Each piece has one job.
+1. **Excel can host the experience we actually want.** The hard part is not a browser tab; it is a
+   task pane running inside Excel with HTTPS, CSP, and webview constraints.
+2. **The tree stays lazy.** Root first, one level per expand, no recursive loading, no speculative
+   prefetch.
+3. **PDF preview works inside the pane.** PDF bytes stream through the API and render with PDF.js,
+   not by handing the client a local path.
+4. **Storage stays behind a server seam.** The client must not care whether the source is mock,
+   local disk, SharePoint, Blob, or a DMS.
 
-**Agents** (`.claude/agents/`) — delegate by concern, each with its own boundaries:
+## Current State
 
-| Agent | Owns |
-| --- | --- |
-| `architect` | Layers, seams, project structure, the decision log, "is this abstraction justified?" |
-| `server-engineer` | `src/Server` — controllers, services, providers, DI, streaming, validation |
-| `taskpane-engineer` | `src/Client` — components, store, lazy-load state machine, layout, Office bootstrap |
-| `pdf-engineer` | `src/Client/pdf` + viewer — PDF.js, worker, zoom/nav/fit, document lifecycle |
-| `test-engineer` | Both test suites, Office.js mocks, architecture boundary checks |
-| `requirements-auditor` | Read-only verification against requirement IDs and the Definition of Done |
+- **Done now:** requirements, architecture, client design, Office constraints, testing strategy,
+  delivery plan, and decision log.
+- **Not in the repo yet:** `src/Server`, `src/Client`, `tests`, `manifest`, screenshots, or a
+  sideloadable add-in.
+- **Next proof point:** Phase 2 delivers the thinnest end-to-end slice with mock data in a real
+  Excel task pane.
 
-**Skills** (`.claude/skills/`) — procedures that must not be improvised:
+## Read In This Order
 
-| Skill | Use it for |
-| --- | --- |
-| `/office-addin-dev` | Dev certs, manifest validation, sideloading, cache clearing, diagnosing a blank pane |
-| `/phase-gate` | The end-of-phase ritual: build, test, boundary checks, functional verification, honest report |
-| `/add-storage-provider` | Swapping mock → SharePoint/Blob/DMS/REST behind the provider seam |
+- [docs/reviewer-guide.md](docs/reviewer-guide.md) — one-page reviewer summary
+- [docs/01-requirements.md](docs/01-requirements.md) — numbered source of truth
+- [docs/02-architecture.md](docs/02-architecture.md) — layers, API, provider seam
+- [docs/04-office.md](docs/04-office.md) — Excel task-pane constraints that kill naive designs
+- [docs/06-delivery.md](docs/06-delivery.md) — phases, proof points, traceability
+- [docs/decisions.md](docs/decisions.md) — why the current choices were made
 
-**Commands** (`.claude/commands/`) — `/adr <decision>` to append to the decision log, `/trace [prefix]` to
-audit requirement coverage.
+Contributor-specific workflow, commands, and agent rules live in [CLAUDE.md](CLAUDE.md).
 
-## Why the structure looks like this
+## Why The Design Is This Strict
 
-Four rules drive nearly every choice, and each has a doc behind it:
+Four constraints drive nearly every decision:
 
-1. **Nothing loads until it's needed.** Root first, one level per expand, cached, never recursive —
-   the tree must hold up at millions of files.
-2. **The UI never learns where files live.** Storage sits behind `IFolderProvider`/`IPdfProvider`;
-   swapping the backend must not touch a client file.
-3. **The task pane is a sandboxed iframe, not a browser tab.** HTTPS, CSP, CORS, no filesystem.
-   Designs that ignore that work in a browser and fail in Excel.
-4. **Done means verified, not compiled.** Requirements are numbered, tests are named after them,
-   and the phase gate checks behaviour.
+1. **The task pane is not a normal browser tab.** HTTPS, CSP, iframe hosting, and webview variance
+   are first-order constraints.
+2. **The client cannot load enterprise storage directly.** No filesystem access, no trusted local
+   paths, and no client-side credentials.
+3. **The tree cannot scale if it loads recursively.** Large hierarchies force one-level, on-demand
+   loading and caching.
+4. **A POC still has to prove the right thing.** "Works in a browser" is not success if it fails in
+   Excel.
+
+## Contributor Notes
+
+The repository is set up for agent-assisted development, but those mechanics are intentionally kept
+out of the reviewer path. If you are implementing Phase 2 or later, start with [CLAUDE.md](CLAUDE.md)
+for rules, commands, and the contributor workflow.
