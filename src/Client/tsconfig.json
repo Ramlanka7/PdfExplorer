@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    /* D5: ES2020 baseline. Excel on Windows (WebView2) is the target host; IE11 gets the
+       static unsupported-host message in taskpane.html and never runs this bundle. */
+    "target": "ES2020",
+    // ES2022.Error only: `new Error(msg, { cause })` is a constructor argument, not
+    // syntax, and WebView2 has had it for years (D5). The emit target stays ES2020.
+    "lib": ["ES2020", "ES2022.Error", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["office-js", "vite/client"],
+
+    /* NFR-CODE-04: strong typing everywhere. */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["**/*.ts"],
+  // The build configs are Node programs, not task-pane code: tsconfig.node.json owns them.
+  "exclude": ["node_modules", "../Server", "vite.config.ts", "vitest.config.ts"]
+}

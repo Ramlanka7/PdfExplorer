@@ -1,0 +1,18 @@
+{
+  /* Client tests live outside this package (tests/Client.Tests), so TypeScript cannot walk up
+     from a test file to the one node_modules in the repository. Only the specifiers the tests
+     import by name are mapped; a `*` wildcard would also capture the packages that vitest's own
+     declarations import, and resolve them past their type entry points. */
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "vitest": ["./node_modules/vitest"],
+      "pdfjs-dist": ["./node_modules/pdfjs-dist"]
+    },
+    /* The architecture test reads the source tree from disk; it is the only client-side code
+       allowed to touch Node APIs. */
+    "types": ["node", "office-js"]
+  },
+  "include": ["../../tests/Client.Tests/**/*.ts"]
+}
