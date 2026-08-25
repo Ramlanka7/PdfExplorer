@@ -183,6 +183,20 @@ describe('pdf viewer', () => {
     expect(app.queryAll('.page').length).toBeGreaterThan(0);
   });
 
+  it('shows a safe non-retryable message when bytes are not a PDF (FR-PDF-11)', async () => {
+    app.pdfs.manual = true;
+    await app.click(SELECTED);
+
+    app.pdfs.rejectCall(0, new PdfLoadError('invalid'));
+    await flush();
+
+    expect(app.query('.viewer__message-text')?.textContent).toBe("This file isn't a readable PDF.");
+    expect(app.query<HTMLElement>('.viewer__message .button--retry')?.hidden).toBe(true);
+    expect(app.state().pdfLoading).toBe(false);
+    // A failed preview must not break navigation in the tree.
+    expect(app.rows()).toHaveLength(2);
+  });
+
   it('never puts a stack trace, path, or provider detail on screen (NFR-ERR-06)', async () => {
     app.pdfs.manual = true;
     await app.click(SELECTED);
