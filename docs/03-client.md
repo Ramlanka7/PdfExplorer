@@ -1,6 +1,6 @@
-# Client architecture and PDF rendering
+# Client — and why it's built this way
 
-## Components (`FR-UI-01`)
+## Component tree
 
 ```
 App                     layout, store wiring, error boundary
@@ -12,176 +12,79 @@ App                     layout, store wiring, error boundary
     └── PageCanvas      one rendered page
 ```
 
-**Boundaries (`FR-UI-02`):** `FolderTree` never imports from `pdf/`. `PdfViewer` never imports from
-the tree or knows an item has a parent. They meet only in the store, through `selectedPdfId`.
-Components are dumb — props in, events out. No `fetch`, no `Office.*`, no `pdfjs-dist` inside a
-component file; lint rules enforce this (`FR-OFC-03`).
+**Why components are "dumb."** `FolderTree` never imports from `pdf/`; `PdfViewer` never imports
+from the tree or knows an item has a parent. They meet only through the store, via
+`selectedPdfId`. Components take props and emit events — no `fetch`, no `Office.*`, no
+`pdfjs-dist` inside a component file. That's what makes them independently testable and lets the
+tree and the viewer change without ever touching each other.
 
-## State (`FR-UI-03`, `FR-UI-04`)
+## Why a hand-rolled store instead of a framework
 
-One hand-rolled store — a plain object plus a subscribe/notify pair. No Redux, MobX, or signals
-library; introducing one needs a decision record (`FR-UI-05`).
+The whole client is two components with one interaction between them, and the state fits in a
+handful of fields. A framework's runtime is bundle weight and CSP/supply-chain surface for a
+problem this small doesn't have (see [decisions.md](decisions.md) D1 for the trade-off accepted).
+So it's one plain object plus a subscribe/notify pair — nodes and their children in flat, ID-keyed
+maps rather than a nested tree, so expanding a deep folder touches two small maps instead of
+cloning a spine of nested objects. The exact shape lives in `state/types.ts`; nothing here should
+duplicate it and risk drifting from the real thing.
 
-```ts
-interface AppState {
-  readonly nodes: ReadonlyMap<ItemId, TreeNode>;        // flat, id-keyed
-  readonly childIds: ReadonlyMap<ItemId, ItemId[]>;     // parent -> ordered children
-  readonly rootIds: readonly ItemId[];
-
-  readonly rootLoadState: LoadState;
-  readonly rootError: UserFacingError | null;
-
-  readonly expandedFolders: ReadonlySet<ItemId>;
-  readonly folderLoadState: ReadonlyMap<ItemId, LoadState>;  // FR-LAZY-05
-  readonly folderErrors: ReadonlyMap<ItemId, UserFacingError>;
-
-  readonly selectedPdfId: ItemId | null;
-  readonly pdfLoading: boolean;
-  readonly pdfError: UserFacingError | null;
-  readonly pdfDocument: PdfDocument | null;
-}
-```
-
-Errors are held as `{ message, retryable, correlationId }` rather than a bare string: whether a
-Retry affordance appears at all comes from the error envelope's code (`NFR-ERR-04`), so the flag
-has to travel with the message. The open document lives in the store so the viewer stays a pure
-renderer; its lifecycle stays in the controller, because the reducer must remain pure.
-
-Flat maps, not a nested tree: expanding a deep node mutates two small maps instead of cloning a
-spine of nested objects (`NFR-PERF-03`). The visible list is derived by a selector that walks
-`rootIds` and descends only into `expandedFolders`. State changes go through named actions —
-`expandFolder`, `collapseFolder`, `childrenLoaded`, `folderLoadFailed`, `selectPdf`, `pdfLoaded`,
-`pdfFailed`. Components dispatch; they never mutate.
-
-## Folder load state machine (`FR-LAZY-05`)
+## Why each folder tracks a four-state machine
 
 ```
-        NotLoaded ──expand──> Loading ──success──> Loaded
-            ^                    │
-            │                  failure
-            └────retry────────  Failed
+NotLoaded ──expand──> Loading ──success──> Loaded
+    ^                    │
+    │                  failure
+    └────retry────────  Failed
 ```
 
-- Expanding a `Loaded` folder makes no request (`FR-LAZY-03`).
-- Expanding a `Loading` folder joins the in-flight promise (`FR-LAZY-04`).
-- Collapsing keeps cached children — it changes `expandedFolders` only, never `childIds`.
-- A leaf with `hasChildren: false` never enters the machine (`FR-EXP-06`).
-- `invalidate(folderId)` returns a node to `NotLoaded` for future refresh (`FR-LAZY-07`).
+This is what makes the lazy-loading requirement true rather than aspirational: expanding a
+`Loaded` folder makes no request, expanding a `Loading` one joins the in-flight promise instead of
+firing a second, and collapsing only hides children — it never discards the cache. The cache **is**
+the children map; there's no second cache to keep in sync with it.
 
-The cache **is** the `childIds` map. A second cache would be duplicated state.
+## Rendering approach
 
-## Services
-
-```ts
-interface FolderService {
-  getRootItems(signal?: AbortSignal): Promise<TreeNode[]>;
-  // parentDepth is the expanded folder's own depth; TreeNode.depth is set here, at the single
-  // place a DTO becomes a TreeNode, rather than recomputed by every consumer.
-  getChildren(folderId: ItemId, parentDepth: number, signal?: AbortSignal): Promise<TreeNode[]>;
-}
-
-interface PdfService {
-  getPdfSource(pdfId: ItemId): PdfSource;
-}
-```
-
-Services own the HTTP boundary: build URLs with `encodeURIComponent` (`NFR-SEC-03`), parse the
-error envelope, map DTO → `TreeNode`, and translate error codes into user-safe messages. Components
-receive messages, never HTTP status codes. In-flight de-duplication lives here — a
-`Map<ItemId, Promise<TreeNode[]>>` keyed by folder (`FR-LAZY-04`, `NFR-PERF-02`).
-
-## Rendering approach and layout
-
-Direct DOM, no virtual DOM. Each store notification re-renders only the affected subtree; the tree
-reconciles by node ID against the derived visible list. If profiling shows this is insufficient at
-large folder sizes, virtualise the visible list — that is a decision, not an improvisation.
-
-- CSS Grid: `grid-template-columns: minmax(180px, var(--tree-width, 240px)) 1fr` (`FR-UI-06`).
-- Both panes `overflow: auto`; the body never scrolls horizontally (`FR-UI-07`).
-- Names truncate with `text-overflow: ellipsis` plus a `title` attribute (`FR-UI-08`).
-- Below ~420 px the panes stack or the tree collapses to a toggle (`FR-UI-09`) — decide with a real
-  measurement in Excel, not in a resized browser window.
-- Fluent-adjacent visual language so it doesn't look foreign in Excel. No component library
-  without a decision justifying the bundle cost.
+Direct DOM, no virtual DOM — each store notification re-renders only the affected subtree, matched
+by node ID. Two panes, CSS Grid, each scrolling independently; the page itself never scrolls
+horizontally, and long names truncate with an accessible full name behind them. If profiling ever
+shows this insufficient at very large folder sizes, virtualising the visible list is a decision to
+make from a profile, not a guess made now.
 
 ---
 
-## PDF.js
+## Why PDF.js, and why it's walled off
 
-The task pane has no PDF plugin, and `<iframe src="...pdf">` varies by webview with no zoom API, no
-page API, and no reliable error signal (`FR-PDF-04`–`FR-PDF-06`, `FR-PDF-11`). PDF.js renders to a
-canvas we control, reports load failure as a typed error, and streams large files by range.
+The task pane has no PDF plugin, and pointing an `<iframe>` at a PDF varies by webview with no
+zoom API, no page API, and no reliable error signal. PDF.js renders to a canvas this app controls,
+so page navigation, zoom, and fit modes are actually implementable, and a load failure is a typed
+error instead of a blank frame.
 
-```ts
-// src/Client/pdf/ — the ONLY place importing pdfjs-dist
-export interface PdfDocument {
-  readonly pageCount: number;
-  getPageSize(pageNumber: number): Promise<PageSize>;   // fit modes need it (FR-PDF-06)
-  renderPage(pageNumber: number, target: HTMLCanvasElement, scale: number): Promise<void>;
-  releasePage(pageNumber: number): void;                // NFR-PERF-05
-  destroy(): void;
-}
+`pdf/` is the only place `pdfjs-dist` is imported. `PdfViewer` depends on a small
+`IPdfDocumentService` seam, not on PDF.js types — so the renderer, or the source it reads from, can
+change without touching the viewer.
 
-export interface IPdfDocumentService {
-  load(source: PdfSource, signal?: AbortSignal): Promise<PdfDocument>;
-}
+**Two details that only bite you inside Excel, never in a browser tab:**
 
-export type PdfSource =
-  | { kind: 'url'; url: string }               // API streams the bytes
-  | { kind: 'bytes'; data: ArrayBuffer };      // tests, embedded mock
-```
+- The PDF.js worker must be a same-origin asset (`new URL(..., import.meta.url)`, resolved by
+  Vite) — pointed at a CDN, it's silently blocked by Excel's CSP.
+- The client never has a file path. A PDF's bytes always come from
+  `/api/pdfs/{id}/content`, fetched only after the user selects it — nothing is ever preloaded.
 
-`PdfViewer` depends on `IPdfDocumentService` only. Swapping the renderer, or the source from URL to
-bytes, does not touch the viewer (`FR-PDF-02`).
+**Memory.** Pages render on demand, never the whole document at once. The previous document is
+destroyed before the next loads, since PDF.js holds a worker per open document. Selecting a second
+PDF before the first finishes loading is handled with a request token, so a slow first response
+can't overwrite a faster second selection.
 
-**Getting the bytes.** The client never has a file path. `PdfService.getPdfSource(id)` returns
-`{ kind: 'url', url: '/api/pdfs/<encoded-id>/content' }`. The only sanctioned path from storage to
-screen is `provider bytes -> API stream -> PDF.js -> canvas`, triggered by selection and nothing
-else (`NFR-PERF-04`).
-
-**Worker.** Resolve through Vite so it is emitted as a hashed, same-origin asset:
-
-```ts
-GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).href;
-```
-
-**Never** point `workerSrc` at a CDN — a CSP-blocked worker is risk R1, and it fails only inside
-Excel, after working perfectly in a browser tab.
-
-**Memory and lifecycle.** Render the visible page and a small neighbourhood, never the whole
-document (`NFR-PERF-05`). `destroy()` the previous `PdfDocument` before loading the next — PDF.js
-holds a worker per document (`NFR-PERF-06`, `FR-PDF-09`). Abort the in-flight load when the
-selection changes (`FR-PDF-10`), and cancel a `RenderTask` before starting another on the same
-canvas.
-
-## Selection flow (`FR-PDF-09`, `FR-PDF-10`)
-
-```
-click PdfNode -> selectPdf(id)
-   -> pdfLoading = true, pdfError = null
-   -> destroy previous document (NFR-PERF-06)
-   -> pdfDocumentService.load(source, { requestId })
-   -> on resolve: if requestId is still current -> render; else discard
-   -> on reject:  if requestId is still current -> pdfError = safe message
-```
-
-A monotonically increasing request token guards against a slow first selection landing after a fast
-second one.
-
-## Viewer states (`FR-PDF-08`, `FR-PDF-11`)
+## Viewer states
 
 | State | UI |
 | --- | --- |
 | No selection | "Select a PDF to preview." |
 | Loading | Spinner + file name; toolbar disabled, not hidden — no layout jump |
 | Rendered | Pages + toolbar (nav, zoom, fit) |
-| Failed — not found | "This file is no longer available." No retry. |
-| Failed — invalid PDF | "This file isn't a readable PDF." No retry. |
-| Failed — network/server | Message + **Retry** (`NFR-ERR-04`) |
+| Failed — not found / invalid PDF | A plain message, no retry offered |
+| Failed — network/server | A message with **Retry** |
 
-Retryable vs permanent comes from the error envelope ([02-architecture.md](02-architecture.md#error-envelope)),
-never from string-matching an exception message.
-
-**Toolbar:** discrete zoom steps (50/75/100/125/150/200 %), no free-form input in v1 (`FR-UI-10`).
-Fit-to-width / fit-to-page recompute on pane resize via `ResizeObserver` (`FR-PDF-06`). Page nav
-reflects scroll position, and scrolling updates the indicator (`FR-PDF-04`).
+Whether retry appears comes from the error envelope's code
+([02-architecture.md](02-architecture.md#error-envelope)), never from matching an exception
+message.

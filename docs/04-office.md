@@ -1,7 +1,8 @@
-# Office task-pane constraints
+# Office task-pane constraints — and why they shape the design
 
-The pane is a sandboxed iframe inside Excel, not a browser tab. These are the rules of that
-environment (`FR-OFC-05`).
+The pane is a sandboxed iframe inside Excel, not a browser tab. Most of this project's stricter
+rules (same-origin API, no CDN worker, PDF.js instead of a native viewer) exist because of the row
+they answer to below.
 
 | Constraint | Consequence |
 | --- | --- |
@@ -15,29 +16,25 @@ environment (`FR-OFC-05`).
 | **No PDF plugin** | The host's native viewer is unavailable to the pane. Rendering is our job (PDF.js). |
 | **Manifest gating** | Domains not listed in `<AppDomains>` may be blocked; only manifest-declared URLs load. |
 
-## Office.js isolation (`FR-OFC-02`, `FR-OFC-03`)
+## Why Office.js is isolated to one file
 
-Office.js does exactly one thing in v1: tell us the host is ready.
+Office.js does exactly one thing here: tell the app the host is ready.
 
 ```ts
 // src/Client/office/officeHost.ts — the ONLY module importing Office.*
-export interface OfficeHost {
-  readonly platform: string;
-  readonly hostVersion: string;
-}
-export function whenOfficeReady(): Promise<OfficeHost>;
+export function whenOfficeReady(): Promise<{ platform: string; hostVersion: string }>;
 ```
 
-`main.ts` awaits it, then boots the application. Everything downstream is plain web code — which is
-what makes the client testable without Excel (`NFR-CODE-07`) and runnable in a browser during
-development. A future requirement that genuinely needs Excel data ("insert a link to this PDF in
-the selected cell") goes behind another function in `office/`, never inline in a component.
+`main.ts` awaits it, then boots the app — everything downstream is plain web code. That's why the
+client is testable without Excel and runs in an ordinary browser during development. Any future
+feature that genuinely needs Excel data goes behind another function in `office/`, never inline in
+a component.
 
-## Verification matrix
+## Why "it works in a browser" isn't proof
 
-`DOD-02`, `DOD-03`, `DOD-09`, `DOD-11` and `FR-OFC-04` cannot be proven by unit tests. Each phase
-gate re-checks them in this order (D5). **A phase gate that has not been run in Excel on Windows
-has not been run** — a browser tab, and Excel on the web, each prove something narrower.
+Unit tests can't prove the pane actually loads inside Excel, so each phase gate re-checks it there,
+in this order — a browser tab and Excel on the web each prove something narrower than the real
+target:
 
 | # | Host | Notes |
 | --- | --- | --- |
