@@ -1,11 +1,9 @@
 # Requirements
 
-**Source of truth.** Every requirement has a permanent ID. Cite IDs in test names
-(`Expanding_a_folder_loads_only_immediate_children_FR_LAZY_02`), commits, and PRs. Retire an ID by
-prefixing its row `WITHDRAWN —`; never renumber or reuse one.
-
-This is a prototype's requirement set, not a phased rollout plan — phase-by-phase status and
-traceability are tracked separately in [06-delivery.md](06-delivery.md), not here.
+Every requirement has an ID so tests and code comments can point at exactly what they prove (e.g.
+`Expanding_a_folder_loads_only_immediate_children_FR_LAZY_02`). Edit this file directly if a
+requirement changes. What's actually built and verified is tracked separately in
+[06-delivery.md](06-delivery.md), not here.
 
 ## What we're building
 

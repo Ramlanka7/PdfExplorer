@@ -1,12 +1,12 @@
 ---
 name: phase-gate
-description: Run the end-of-phase verification ritual for PdfExplorer — build server and client, run both test suites, run the architecture boundary checks, verify each in-scope requirement functionally, update requirement statuses and traceability, then report honestly. Use at the end of every delivery phase and before claiming any phase or the project is complete.
+description: Run a build+test+verify pass for PdfExplorer — build server and client, run both test suites, run the architecture boundary checks, verify requirements functionally, update traceability, then report honestly. Use before claiming any chunk of work or the project done.
 ---
 
 # Phase gate
 
-Argument: the phase number (1–5). Scope comes from `docs/06-delivery.md`; requirement IDs from
-`docs/01-requirements.md`.
+Argument: an optional scope (a requirement prefix, a feature area, or nothing for everything).
+Requirement IDs come from `docs/01-requirements.md`; status is recorded in `docs/06-delivery.md`.
 
 **The rule this exists to enforce:** an implementation is not complete because it compiles. Every
 step below is evidence-producing. If you cannot produce the evidence, the item is unverified — say
@@ -57,8 +57,8 @@ exception — not something to note and move past.
 
 ## 4. Verify requirements functionally
 
-For each requirement in this phase's scope, **exercise the behaviour**. Reading the code does not
-count. In particular:
+For each requirement in scope, **exercise the behaviour**. Reading the code does not count. In
+particular:
 
 - Load root, then expand one folder: confirm the network log shows exactly two requests, one level
   each (`FR-LAZY-01`, `FR-LAZY-02`, `DOD-12`).
@@ -70,10 +70,10 @@ count. In particular:
   and that the rest of the UI still works (`NFR-ERR-02`, `NFR-ERR-04`).
 - Shrink the pane to its minimum width: confirm it stays usable (`FR-UI-09`).
 
-Phases 2 and later additionally require a run in **Excel on Windows** (`office-addin-dev` skill) for
-`DOD-02`, `DOD-03`, `DOD-09`, `DOD-11`, `FR-OFC-04`. Per decision D5 that host is where these are
-signed off — a gate that has not been run there has not been run. Log the check in
-`docs/06-delivery.md#manual-verification-log` with the Office build and webview.
+A gate covering `DOD-02`, `DOD-03`, `DOD-09`, `DOD-11`, `FR-OFC-04` additionally requires a run in
+**Excel on Windows** (`office-addin-dev` skill) — that's the target host per
+[decisions.md](../../../docs/decisions.md), and a gate not run there has not been run. Log the
+check in `docs/06-delivery.md#manual-verification-log` with the Office build and webview.
 
 ## 5. Update the record
 
@@ -89,7 +89,7 @@ State plainly:
 - **Verified**, with evidence.
 - **Unverified or deferred**, with what is missing and why.
 - **New risks or contradictions** found.
-- **Ready / not ready** for the next phase — and if not ready, the shortest path to ready.
+- **Ready / not ready** to call this done — and if not ready, the shortest path to ready.
 
 Do not soften a gap into a summary. The point of the gate is to find the thing that would otherwise
-be discovered inside Excel, three phases later.
+be discovered inside Excel, later, in front of someone else.

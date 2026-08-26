@@ -1,72 +1,39 @@
-# Delivery plan and traceability
+# Status and traceability
 
-Five phases. Each ends with `/phase-gate <n>` — build, test, verify against requirement IDs,
-update the tables below. Do not start the next phase before the gate passes, and do not declare a
-phase done because the code compiles. **Anything that cannot be verified is reported as unverified,
-never as done.**
+Where things stand, and which requirements have real code and a real test behind them — not a
+phase plan. `/phase-gate` runs a build+test+verify pass and updates this file; `/trace` refreshes
+just the traceability table. Neither is mandatory — run them when you want the honest answer to
+"does this actually work," not as a required ritual.
 
-| Phase | Scope | Requirements | Exit criterion | Owners |
-| --- | --- | --- | --- | --- |
-| **1 — Architecture** ✅ *complete 2026-08-25* | No application code. Structure, seams, contracts, risk register. | — | Docs ratified, D1–D6 closed in [decisions.md](decisions.md) | `architect` |
-| **2 — Vertical slice** | The thinnest genuinely end-to-end path: Office.js → two panes → mock provider → tree → mock PDF. No polish, no zoom, no caching subtleties. | FR-EXP-01…10, FR-PDF-01/02/03/07/08/11, FR-DATA-01/02/03/04/06/07/08, FR-LAZY-01, FR-UI-01…08, FR-OFC-01…06, NFR-CODE-07 | The add-in loads in a **real Excel task pane** and shows a mock PDF from a mock tree (`DOD-01`–`DOD-06`, `DOD-08`, `DOD-09`). A browser-tab-only verification does not count. | `server-engineer`, `taskpane-engineer`, `pdf-engineer` |
-| **3 — Lazy loading + caching** | State machine, cache, in-flight de-dup, per-node error and retry, PDF replacement and race safety. | FR-LAZY-02…07, FR-EXP-05, FR-PDF-09/10, NFR-PERF-02/03 | An instrumented run proves expanding N folders issues exactly N requests, re-expanding issues none, and the architecture checks pass (`DOD-07`, `DOD-12`, `DOD-14`). | `taskpane-engineer`, `test-engineer` |
-| **4 — Real provider + full viewer** | `LocalFileSystem*` behind the same interfaces, streaming through the API. Page nav, zoom, fit modes. | FR-DATA-05, FR-PDF-04/05/06, NFR-SEC-06/07, NFR-PERF-05/06 | Switching `Explorer:Provider` from `Mock` to `LocalFileSystem` changes behaviour with **zero client-file diffs** (`DOD-15`) — prove it with the git diff. | `server-engineer`, `pdf-engineer` |
-| **5 — Hardening** | Every listed failure handled, correlation-ID logging, full test matrix, perf pass, security review, host validation, narrow-width UX, accessibility. | NFR-ERR-01…06, NFR-PERF-01, NFR-SEC-01…07, FR-UI-09, FR-EXP-11 | All `DOD-01`–`DOD-15` verified with evidence below, including the manual Excel checks. | `test-engineer`, `requirements-auditor`, `security-review` skill |
+## Current status
 
----
-
-## Phase execution checklist
-
-Use this checklist before running `/phase-gate <n>`.
-
-### Common (all phases)
-
-- [ ] Scope implemented exactly as listed for phase `n`
-- [ ] Requirements for phase `n` mapped to concrete code changes
-- [ ] Automated tests updated or added for every automatable requirement
-- [ ] Manual verification items identified and scheduled
-- [ ] Evidence artifacts prepared (commands, logs, screenshots, commit IDs)
-
-### Gate command checklist
-
-- [ ] `dotnet build PdfExplorer.slnx`
-- [ ] `dotnet test`
-- [ ] `npm --prefix src/Client run lint`
-- [ ] `npm --prefix src/Client test`
-- [ ] Run `phase-gate` ritual for current phase and record outcomes below
-
-### Evidence to record per phase
-
-- Build result summary:
-- Test result summary (server/client):
-- Requirement IDs verified in this phase:
-- Manual Excel checks completed:
-- Known gaps carried forward:
+Architecture and requirements are settled (see [decisions.md](decisions.md)). Update this section
+in plain language as things land — what's built, what's stubbed, what's untested. Don't let it
+drift from reality; a stale status note is worse than none.
 
 ## Traceability
 
-Maintained by the `requirements-auditor`; regenerate with `/trace`.
-
-- A requirement is `DONE` only with an implementation reference **and** a test reference — or, for
+- A requirement counts as done with an implementation reference **and** a test reference — or, for
   manual-only items, dated evidence of a check inside Excel.
-- "A test exists" is not "the requirement is verified". The auditor reads the test and confirms it
-  actually asserts the behaviour.
-- Never mark something verified from reading code. Run it.
+- "A test exists" isn't "the requirement is verified" — the test has to actually assert the
+  behaviour.
+- Don't mark something verified from reading code. Run it.
 
 | Req | Implementation | Test | Verified | Notes |
 | --- | --- | --- | --- | --- |
-| _(populated from Phase 2 onward)_ | | | | |
+| | | | | |
 
-### Manual verification log
+## Manual verification log
 
-`DOD-02`, `DOD-03`, `DOD-09`, `DOD-11` and `FR-OFC-04` cannot be automated. Log every check.
+`DOD-02`, `DOD-03`, `DOD-09`, `DOD-11` and `FR-OFC-04` can't be automated — they need a real Excel
+host. Log every check.
 
-| Date | Phase | Host / build | Checked | Result | By |
-| --- | --- | --- | --- | --- | --- |
-| 2026-08-25 | 2 | Excel on Windows desktop (Microsoft 365, WebView2) | Sideload via `manifest/manifest.dev.xml` against the Vite dev server; task pane opens from the ribbon; PDF renders in the pane (`FR-OFC-06`, `DOD-02`, `DOD-03`, `DOD-09`) | Pass | Ram Lanka / Claude Code |
+| Date | Host / build | Checked | Result | By |
+| --- | --- | --- | --- | --- |
+| 2026-08-25 | Excel on Windows desktop (Microsoft 365, WebView2) | Sideload via `manifest/manifest.dev.xml` against the Vite dev server; task pane opens from the ribbon; PDF renders in the pane (`FR-OFC-06`, `DOD-02`, `DOD-03`, `DOD-09`) | Pass | Ram Lanka / Claude Code |
 
-### Known gaps
+## Known gaps
 
-| Req | Gap | Owner | Plan |
-| --- | --- | --- | --- |
-| | | | |
+| Req | Gap | Plan |
+| --- | --- | --- |
+| | | |

@@ -53,11 +53,9 @@ item path, or blob key to the client.
 ## 3. Map failures to the domain exceptions
 
 `ItemNotFoundException` · `ItemAccessDeniedException` · `ProviderUnavailableException` ·
-`InvalidPdfException`.
-
-Backend-specific exception types must not escape the provider. The service layer maps these to the
-error envelope in `docs/02-architecture.md#error-envelope`; nothing about your backend should be visible in a
-user-facing message (`NFR-ERR-06`).
+`InvalidPdfException`. Backend-specific exception types must not escape the provider — the service
+layer maps these to the error envelope (`docs/02-architecture.md#error-envelope`), and nothing
+about your backend should be visible in a user-facing message (`NFR-ERR-06`).
 
 ## 4. Register by configuration
 
@@ -70,9 +68,9 @@ services.AddExplorerProvider(configuration);
 { "Explorer": { "Provider": "SharePoint", "SharePoint": { "SiteUrl": "…" } } }
 ```
 
-Credentials come from configuration/secret storage on the **server** (`NFR-SEC-05`). Nothing
-reaches the browser. If the backend needs a user token, that is an auth design change — take it to
-`architect` for an ADR, do not improvise a client-side token.
+Credentials come from configuration/secret storage on the **server** (`NFR-SEC-05`) — nothing
+reaches the browser. A backend that needs a user token is an auth design change: take it to
+`architect`, don't improvise a client-side token.
 
 ## 5. Test it (`FR-DATA-04`, `FR-DATA-03`)
 
