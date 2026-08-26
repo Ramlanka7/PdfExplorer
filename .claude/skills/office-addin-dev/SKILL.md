@@ -24,17 +24,27 @@ these steps rather than improvising.
 > the Windows box by hostname/IP, that URL needs to be in the manifest **and** `<AppDomains>`, and
 > the dev cert must be trusted **on the Windows machine**. Simplest fix: run everything on Windows.
 
-## 1. HTTPS dev certificates (once per machine)
+## 1. HTTPS dev certificates (automatic — nothing to run here on a fresh clone)
 
-Office refuses to load an add-in over plain HTTP, including from localhost (`FR-OFC-05`).
+Office refuses to load an add-in over plain HTTP, including from localhost (`FR-OFC-05`). You do
+**not** need a separate command for this: `npm --prefix src/Client run dev` calls
+`office-addin-dev-certs`'s `getHttpsServerOptions()` itself (`vite.config.ts`), which generates a
+localhost CA and installs it into the current user's trust store (no admin prompt) the first time
+it runs on a machine. A fresh clone gets a working `https://localhost:3000` from the two commands in
+step 3 alone.
+
+Only reach for the manual commands below when that self-install didn't take — e.g. a corporate
+Group Policy blocks writes to the CurrentUser Root store, or you're diagnosing a cert/mixed-content
+error already showing in the console:
 
 ```bash
-npx office-addin-dev-certs install     # installs and trusts a localhost CA
-npx office-addin-dev-certs verify
+npx office-addin-dev-certs verify      # confirms whether the CA is actually trusted
+npx office-addin-dev-certs install     # re-generates and re-trusts it if not
 ```
 
-Run this on the machine Excel runs on. The Vite dev server consumes these certs. A blank pane with a
-certificate or mixed-content error in the console is this.
+If the browser still warns after `install` reports success, close **all** browser windows first —
+Chromium caches a per-site invalid-certificate decision from before the CA existed and won't
+re-check until every window for that profile is closed.
 
 **Never** work around a certificate problem by disabling security in the webview (`NFR-SEC-04`,
 rule 15).

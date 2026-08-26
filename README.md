@@ -62,9 +62,12 @@ Excel launches with the add-in registered — click **PDF Explorer** on the Home
 the task pane, then **Browse** to pick a folder with some PDFs in it. To unregister:
 `npx office-addin-debugging stop ../../manifest/manifest.dev.xml` (same directory).
 
-If the pane shows an "ADD-IN ERROR / network connectivity" dialog, its own Retry button is
-unreliable — close the task pane and click **PDF Explorer** again instead. Full prerequisites
-(dev certs, WebView2, manifest validation, cache clearing) are in the `office-addin-dev` skill.
+The two commands above are the whole setup — the HTTPS dev certificate is generated and trusted
+automatically the first time `npm run dev` runs (no separate cert command, no admin prompt). If the
+pane shows an "ADD-IN ERROR / network connectivity" dialog, its own Retry button is unreliable —
+close the task pane and click **PDF Explorer** again instead. WebView2, manifest validation, and
+cache-clearing steps (needed only for actually sideloading into Excel, not for the browser check
+above) are in the `office-addin-dev` skill.
 
 ## Testing
 
