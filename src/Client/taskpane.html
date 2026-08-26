@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PDF Explorer</title>
+
+    <!--
+      Office.js must come from the Microsoft CDN: the host looks for it there and the domain is
+      already trusted by the task-pane CSP. This is the one external script; everything else,
+      including the PDF.js worker, is same-origin (D3, risk R1).
+    -->
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <link rel="stylesheet" href="./styles/taskpane.css" />
+  </head>
+
+  <body>
+    <!--
+      D5 / risk R4: Excel builds without the WebView2 runtime fall back to the IE11 engine, which
+      cannot run this bundle. IE11 ignores `type="module"`, so the app never starts there; it also
+      ignores `@supports`, so the CSS rule that hides this block never applies and the message
+      stays on screen. That keeps the fallback working with no script at all, which matters
+      because the task-pane CSP restricts inline script.
+    -->
+    <div id="unsupported-host" class="unsupported-host">
+      <h1>PDF Explorer can&rsquo;t run in this version of Excel</h1>
+      <p>
+        This add-in needs a Microsoft 365 build of Excel with the Microsoft Edge WebView2 runtime
+        installed. Excel is currently using the older Internet Explorer engine.
+      </p>
+      <p>Update Office, or install the WebView2 runtime, then reopen the pane.</p>
+    </div>
+
+    <div id="app" class="app-root"></div>
+
+    <script type="module" src="./app/main.ts"></script>
+  </body>
+</html>

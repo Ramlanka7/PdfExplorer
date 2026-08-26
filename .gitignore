@@ -1,0 +1,19 @@
+# Node
+node_modules/
+npm-debug.log*
+
+# Client build output (served by the API from wwwroot)
+src/Server/wwwroot/
+
+# .NET
+bin/
+obj/
+
+# Editors / OS
+.DS_Store
+.vs/
+.idea/
+*.user
+
+# Local dev server output
+*.log

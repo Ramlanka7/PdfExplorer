@@ -1,0 +1,444 @@
+/*
+ * Fluent-adjacent so the pane does not look foreign inside Excel, but hand-written: a component
+ * library would be bundle weight on a corporate network and a decision record, for a two-pane
+ * layout (D1, FR-UI-10).
+ *
+ * Designed at the narrow width first - a task pane is routinely ~320px wide (FR-UI-09).
+ */
+
+:root {
+  --tree-width: 240px;
+  --tree-min-width: 180px;
+
+  --font-stack: "Segoe UI", "Segoe UI Web (West European)", -apple-system, BlinkMacSystemFont,
+    system-ui, sans-serif;
+  --font-size: 13px;
+  --row-height: 26px;
+
+  --color-text: #201f1e;
+  --color-text-secondary: #605e5c;
+  --color-surface: #ffffff;
+  --color-surface-alt: #faf9f8;
+  --color-border: #edebe9;
+  --color-hover: #f3f2f1;
+  --color-selected: #e1dfdd;
+  --color-accent: #0f6cbd;
+  --color-danger: #a4262c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/*
+ * Every pane sets its own unconditional `display` (flex/grid) on the elements it toggles with the
+ * `hidden` attribute, and an author rule always wins over the UA default `[hidden] { display:
+ * none }` at equal origin. Without this, setHidden() flips the DOM property but nothing ever
+ * disappears - which is exactly what made the tree pane's "Loading folders..." status stay on
+ * screen forever once shown, even after the folders had finished loading (FR-LAZY-01). One rule
+ * here keeps every future component honest instead of an `[hidden]` override per class.
+ */
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-stack);
+  font-size: var(--font-size);
+  color: var(--color-text);
+  background: var(--color-surface);
+  /* FR-UI-07: the page itself never scrolls; each pane owns its own overflow. */
+  overflow: hidden;
+}
+
+/*
+ * The legacy-engine fallback. Visible by default and hidden only where @supports exists, so a
+ * webview that cannot run the bundle also cannot accidentally hide the explanation (D5).
+ */
+.unsupported-host {
+  display: block;
+  max-width: 34em;
+  padding: 24px;
+  line-height: 1.5;
+}
+
+.unsupported-host h1 {
+  font-size: 17px;
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+
+.unsupported-host p {
+  margin: 0 0 12px;
+  color: var(--color-text-secondary);
+}
+
+.app-root {
+  display: none;
+  height: 100%;
+}
+
+@supports (display: grid) {
+  .unsupported-host {
+    display: none;
+  }
+
+  .app-root {
+    display: block;
+  }
+}
+
+/* FR-UI-06: a minimum and configurable left pane; the viewer takes the remainder. */
+.app {
+  display: grid;
+  grid-template-columns: minmax(var(--tree-min-width), var(--tree-width)) 1fr;
+  height: 100%;
+  min-height: 0;
+}
+
+.pane {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.source-picker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 3px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.source-picker__button {
+  flex: 0 0 auto;
+}
+
+/* FR-UI-07: each pane scrolls independently. */
+.pane--tree {
+  border-right: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
+  overflow: auto;
+}
+
+.pane--viewer {
+  background: var(--color-surface-alt);
+  overflow: hidden;
+}
+
+.pane__status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  color: var(--color-text-secondary);
+}
+
+.pane__status-text {
+  min-width: 0;
+}
+
+/* ---------------------------------------------------------------- tree rows */
+
+.tree {
+  padding-bottom: 8px;
+}
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--row-height);
+  padding-right: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.tree-row:hover {
+  background: var(--color-hover);
+}
+
+.tree-row:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.tree-row__lead {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  flex: 0 0 16px;
+  color: var(--color-text-secondary);
+}
+
+.tree-row__icon {
+  flex: 0 0 16px;
+  color: var(--color-text-secondary);
+}
+
+.tree-row--pdf .tree-row__icon {
+  color: var(--color-accent);
+}
+
+/* FR-UI-08: a long name truncates instead of breaking the layout; the title attribute keeps the
+   full value available. */
+.tree-row__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-row__hint {
+  flex: 0 0 auto;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+
+.tree-row__hint:empty {
+  display: none;
+}
+
+.icon--chevron {
+  transition: transform 120ms ease;
+}
+
+.tree-row.is-expanded .icon--chevron {
+  transform: rotate(90deg);
+}
+
+.tree-row.is-selected {
+  background: var(--color-selected);
+  font-weight: 600;
+}
+
+.tree-row--error {
+  color: var(--color-danger);
+  align-items: flex-start;
+  padding-top: 2px;
+  padding-bottom: 4px;
+}
+
+.tree-row--error .tree-row__icon {
+  color: var(--color-danger);
+  margin-top: 4px;
+}
+
+.tree-row--error .tree-row__name {
+  white-space: normal;
+  overflow: visible;
+  line-height: 1.4;
+}
+
+.tree-row--error .tree-row__hint {
+  color: var(--color-accent);
+  text-decoration: underline;
+  margin-top: 3px;
+}
+
+/* ------------------------------------------------------------------- viewer */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  /* Row-gap is deliberately larger than column-gap: a group that wraps to its own line (common
+     at task-pane widths, since three groups rarely fit on one row - FR-UI-09) needs enough
+     breathing room to read as a second toolbar row rather than a stray, cramped control. */
+  gap: 8px 10px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.toolbar__group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.toolbar__page-input {
+  width: 3em;
+  height: 24px;
+  padding: 0 4px;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  font: inherit;
+  text-align: center;
+}
+
+.toolbar__page-total,
+.toolbar__zoom-label {
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.toolbar__zoom-label {
+  min-width: 3em;
+  text-align: center;
+}
+
+.button {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.button:hover:not(:disabled) {
+  background: var(--color-hover);
+}
+
+.button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.button--icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+}
+
+.button--toggle {
+  height: 24px;
+  padding: 0 6px;
+}
+
+.button--toggle.is-active {
+  background: var(--color-selected);
+  border-color: var(--color-border);
+}
+
+.button--retry {
+  height: 24px;
+  padding: 0 10px;
+  border-color: var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-accent);
+}
+
+/* The source picker's primary action (FR-EXP-*): larger than the toolbar buttons since it is the
+   first thing to interact with in an otherwise empty pane. */
+.button--primary {
+  height: 30px;
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 600;
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: #ffffff;
+}
+
+.button--primary:hover:not(:disabled) {
+  background: #0c5aa6;
+  border-color: #0c5aa6;
+}
+
+.button--secondary {
+  height: 30px;
+  padding: 0 14px;
+  border-color: var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.button--secondary:hover:not(:disabled) {
+  background: var(--color-hover);
+}
+
+/* FR-PDF-07: the viewer scrolls independently of the tree. */
+.viewer__surface {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.viewer__surface:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.viewer__message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 24px;
+  text-align: center;
+  color: var(--color-text-secondary);
+}
+
+.viewer__message-text {
+  margin: 0;
+  max-width: 28em;
+}
+
+/* Padding and gap are applied from pdfViewer.ts so the scroll maths cannot drift from the CSS. */
+.viewer__pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.page {
+  background: var(--color-surface);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.16);
+  flex: 0 0 auto;
+}
+
+.page__canvas {
+  display: block;
+}
+
+.startup-failure {
+  padding: 24px;
+  color: var(--color-text-secondary);
+}
+
+.app__crash {
+  grid-column: 1 / -1;
+  padding: 8px 12px;
+  color: var(--color-danger);
+  border-top: 1px solid var(--color-border);
+}
+
+/*
+ * FR-UI-09. Below this width two side-by-side panes stop being usable, so they stack. The exact
+ * threshold needs a measurement in a real Excel task pane, not a resized browser window
+ * (docs/03-client.md).
+ */
+@media (max-width: 420px) {
+  .app {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(80px, 40%) 1fr;
+  }
+
+  .pane--tree {
+    border-right: none;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .toolbar {
+    gap: 6px 6px;
+  }
+}
