@@ -43,10 +43,17 @@ task pane, not a browser tab.
 
 ## Running Locally & Testing in Excel
 
+First time only, install the client's dependencies (`dotnet run` restores the server's
+automatically; npm has no equivalent, so this step doesn't happen for you):
+
+```bash
+npm --prefix src/Client install
+```
+
 Two terminals for the app, a third to sideload:
 
 ```bash
-dotnet run --project src/Server        # API (Kestrel, https://localhost:7178)
+dotnet run --project src/Server        # API (Kestrel, http://localhost:5150 / https://localhost:7178)
 npm --prefix src/Client run dev        # Vite dev server (https://localhost:3000)
 ```
 
@@ -62,12 +69,23 @@ Excel launches with the add-in registered — click **PDF Explorer** on the Home
 the task pane, then **Browse** to pick a folder with some PDFs in it. To unregister:
 `npx office-addin-debugging stop ../../manifest/manifest.dev.xml` (same directory).
 
-The two commands above are the whole setup — the HTTPS dev certificate is generated and trusted
-automatically the first time `npm run dev` runs (no separate cert command, no admin prompt). If the
-pane shows an "ADD-IN ERROR / network connectivity" dialog, its own Retry button is unreliable —
-close the task pane and click **PDF Explorer** again instead. WebView2, manifest validation, and
-cache-clearing steps (needed only for actually sideloading into Excel, not for the browser check
-above) are in the `office-addin-dev` skill.
+The `npm install` and two run commands above are the whole setup — the HTTPS dev certificate Vite
+uses is generated and trusted automatically the first time `npm run dev` runs (no separate cert
+command, no admin prompt). If the pane shows an "ADD-IN ERROR / network connectivity" dialog, its
+own Retry button is unreliable — close the task pane and click **PDF Explorer** again instead.
+WebView2, manifest validation, and cache-clearing steps (needed only for actually sideloading into
+Excel, not for the browser check above) are in the `office-addin-dev` skill.
+
+The task pane itself never calls Kestrel directly — it only calls same-origin `/api` on `:3000`,
+which Vite proxies to `:7178` (cert validation disabled for that proxy hop, D3). To sanity-check the
+API on its own (curl, browser, Postman), use `http://localhost:5150/api/folders/root` — the plain
+HTTP endpoint Kestrel also binds in dev. Hitting `https://localhost:7178` directly instead needs its
+own trust step first (`dotnet dev-certs https --trust`), separate from the Vite cert above, or a
+browser will reject it.
+
+A healthy response looks like `{"items":[],"nextCursor":null}` — an empty list is expected until a
+folder source is picked with **Browse** in the pane; `FolderSourceState` has nothing to read until
+then, so this is not an error.
 
 ## Testing
 
