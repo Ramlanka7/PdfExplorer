@@ -1,7 +1,8 @@
 # Testing strategy
 
-Every test is named after the requirement it proves. A requirement without a test is not `DONE`.
-Naming: `Method_scenario_expected_REQ_ID` in C#; `it('… (FR-EXP-04)')` in TypeScript.
+Every test is named after the requirement it proves — `Method_scenario_expected_REQ_ID` in C#,
+`it('… (FR-EXP-04)')` in TypeScript — so a requirement without a test is visibly not done, and a
+failing test says which promise broke.
 
 | Layer | Tool | Location |
 | --- | --- | --- |
@@ -9,60 +10,42 @@ Naming: `Method_scenario_expected_REQ_ID` in C#; `it('… (FR-EXP-04)')` in Type
 | Server API | `WebApplicationFactory` in-memory host | `tests/Server.Tests` |
 | Client unit (store, services) | Vitest | `tests/Client.Tests` |
 | Client component (DOM) | Vitest + jsdom + Testing Library | `tests/Client.Tests` |
-| Office.js | hand-written stub, no Excel (`NFR-CODE-07`) | `tests/Client.Tests/mocks` |
-| Excel host behaviour | **manual** — see [04-office.md](04-office.md#verification-matrix) | — |
+| Office.js | hand-written stub, no Excel | `tests/Client.Tests/mocks` |
+| Excel host behaviour | **manual** — see [04-office.md](04-office.md#why-it-works-in-a-browser-isnt-proof) | — |
 
-## Required tests
+## What the suite actually has to prove
 
-### Folder behaviour
-| Req | Test |
+The product's real behaviour is four claims about what *doesn't* happen, which is why most of
+these are asserted on request/call counts, not just rendered output:
+
+| Claim | Proven by |
 | --- | --- |
-| FR-LAZY-01 | Root items load and render on startup |
-| FR-LAZY-02 | Children are requested only on first expand — a service spy asserts zero calls before |
-| FR-EXP-05 | After children load, no descendant is in `expandedFolders` |
-| FR-EXP-03 | Expand shows children; collapse hides them and keeps the cache |
-| FR-LAZY-03 | Collapse → re-expand issues no second request (call count stays 1) |
-| FR-LAZY-06 | A rejected children request sets `Failed` + message, and retry recovers |
-| FR-LAZY-04 | Two rapid expands of one folder produce one request |
-| FR-EXP-09 | Clicking a folder never calls the PDF service |
-| DOD-12 | Loading root + expanding one folder requests exactly two endpoints, never a recursive one |
+| Nothing loads until expanded; expanding loads one level | Root renders on startup; a service spy shows zero child calls before expand, one after (`FR-LAZY-01/02`) |
+| Nothing ever auto-expands | After children load, no descendant is in `expandedFolders` (`FR-EXP-05`) |
+| A loaded folder is never re-requested | Collapse → re-expand keeps the call count at 1; two rapid expands still produce one request (`FR-LAZY-03/04`) |
+| A stale response never wins | A slow first PDF/folder load resolving after a newer selection is discarded, not rendered (`FR-PDF-10`) |
 
-### PDF behaviour
-| Req | Test |
+Plus the everyday cases: a failed folder/PDF load shows a message and recovers on retry
+(`FR-LAZY-06`, `FR-PDF-11`); clicking a folder never calls the PDF service (`FR-EXP-09`); selecting
+a second PDF destroys the first (`FR-PDF-09`); no rendered error text ever contains a stack trace,
+path, or provider name (`NFR-ERR-06`); traversal-shaped IDs (`../`, absolute, encoded) are rejected
+as not-found (`NFR-SEC-06`); mock providers answer without HTTP or disk (`FR-DATA-03/04`).
+
+## Architecture checks
+
+Two cheap, scripted checks over the source tree run in every phase gate — the only automated guard
+on the boundaries the whole design rests on:
+
+| Check | Guards |
 | --- | --- |
-| FR-PDF-01/02 | Selecting a PDF loads it and renders into the viewer |
-| FR-PDF-09 | Selecting a second PDF replaces the first and destroys the previous document |
-| FR-PDF-08 | `pdfLoading` is true during the fetch and false after |
-| FR-PDF-11 | Fetch rejection and non-PDF bytes both produce a safe message, no crash |
-| FR-PDF-10 | A slow first load resolving after a second selection does not overwrite it |
-| NFR-ERR-06 | No rendered error text contains a stack trace, path, or provider name |
-
-### Provider / API
-| Req | Test |
-| --- | --- |
-| FR-DATA-04 | `MockFolderProvider` returns roots and children directly, no HTTP |
-| FR-DATA-03 | `MockPdfProvider` returns a stream for a known ID, throws `ItemNotFoundException` otherwise |
-| FR-DATA-02 | Controllers return the documented shape and status codes |
-| NFR-SEC-06 | Traversal-shaped IDs (`../`, absolute, encoded) are rejected as not-found |
-| FR-DATA-08 | A provider returning `NextCursor` flows through the API unchanged |
-
-### Architecture
-| Req | Test |
-| --- | --- |
-| DOD-14 | Static check: no file under `components/` imports from `services/http`, `pdf/`, or `office/`; no client file names a storage technology |
-| FR-OFC-03 | Static check: `Office.` appears only under `office/` |
-
-These two are cheap scripted assertions over the source tree, and the only automated guard on the
-boundaries that matter most — so they run in every phase gate.
+| No file under `components/` imports `services/http`, `pdf/`, or `office/`; no storage-technology name appears in the client | `DOD-14` |
+| `Office.` appears only under `office/` | `FR-OFC-03` |
 
 ## Rules
 
-- Test behaviour through the store and the DOM, not implementation details of internal helpers.
+- Test behaviour through the store and the DOM, not internal helpers.
 - Fake at the seams — `FolderService`, `IPdfDocumentService`, `IFolderProvider` — never by patching
-  globals like `window.fetch` in a component test. If that seems necessary, the component is
-  reaching past its layer, and *that* is the finding.
-- Assert on **request counts**, not just rendered output. The lazy-loading requirements are mostly
-  claims about what was *not* requested.
-- No test may require a real Excel instance, network access, or files outside the repo
-  (`NFR-CODE-07`).
+  `window.fetch` in a component test. If that seems necessary, the component is reaching past its
+  layer, and *that* is the finding.
+- No test may require a real Excel instance, network access, or files outside the repo.
 - A bug fix lands with the test that would have caught it.

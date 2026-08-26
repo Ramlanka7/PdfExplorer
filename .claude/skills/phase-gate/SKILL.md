@@ -77,8 +77,8 @@ signed off — a gate that has not been run there has not been run. Log the chec
 
 ## 5. Update the record
 
-- Set statuses in `docs/01-requirements.md` (`TODO` → `DONE` only with evidence).
-- Fill in the traceability table in `docs/06-delivery.md`: requirement → file:line → test → verification.
+- Fill in the traceability table in `docs/06-delivery.md` (`TODO` → `DONE` only with evidence):
+  requirement → file:line → test → verification. Status lives there, not in `01-requirements.md`.
 - Log manual Excel checks with date, host and build.
 - Add any new risk to `docs/02-architecture.md`.
 

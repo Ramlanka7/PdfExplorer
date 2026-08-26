@@ -2,42 +2,39 @@
 
 An **Excel task-pane add-in** (Office.js + .NET 10 / ASP.NET Core) for browsing a folder hierarchy
 and previewing PDFs without leaving Excel. Two panes: a lazy-loading folder tree on the left, a
-PDF.js viewer on the right.
+PDF.js viewer on the right — running inside a real Excel task pane, not a browser tab.
 
-Status: **Phase 1 complete** (2026-08-25). This repository state is **architecture and planning
-only**: requirements, constraints, seams, and delivery gates are documented, but the end-to-end
-add-in is **not committed yet**. Phase 2 is the first real vertical slice.
+## What It Does
 
-Planned stack: vanilla TypeScript + Vite, same-origin ASP.NET Core (.NET 10), PDF.js, XML
-manifest. Target host: **Excel on Windows** (Microsoft 365 + WebView2); Excel on the web is
-secondary.
+- **Pick a folder source.** The pane starts empty with a **Browse** button. Clicking it opens the
+  native Windows folder picker (no path typing); the chosen folder becomes the tree root. A
+  **Clear** button drops the source and returns to the empty state. Nothing is hard-coded — any
+  folder on disk that the API process can read works.
+- **Lazy folder tree.** Only the root loads up front. Expanding a folder fetches just that folder's
+  children — no recursive walk, no speculative prefetch. Expanding the same folder twice reuses the
+  cached result instead of re-fetching.
+- **PDF preview.** Selecting a PDF streams its bytes through the API and renders it with PDF.js —
+  page navigation (jump to page, next/previous), zoom in/out, and fit-to-width / fit-to-page.
+- **Runs inside Excel.** Sideloaded as a task-pane add-in on Excel for Windows via
+  `manifest/manifest.dev.xml`, served over HTTPS through the Vite dev server with `/api` proxied to
+  the same-origin ASP.NET Core API.
+- **Typed error handling.** Folder/PDF failures (not found, access denied, invalid source, provider
+  unavailable) map to one error envelope end to end and surface as per-node or per-pane messages
+  with retry — never a blank pane or a raw exception.
 
-## If You're Reviewing This Repo
+## Architecture At a Glance
 
-- Start with [docs/reviewer-guide.md](docs/reviewer-guide.md) for the short version.
-- Treat this as a **POC architecture repo**, not a finished add-in or even a runnable slice yet.
-- The next milestone that matters is Phase 2: a real Excel task pane, mock folder tree, mock PDF,
-  and same-origin API working together.
-
-## What This POC Must Prove
-
-1. **Excel can host the experience we actually want.** The hard part is not a browser tab; it is a
-   task pane running inside Excel with HTTPS, CSP, and webview constraints.
-2. **The tree stays lazy.** Root first, one level per expand, no recursive loading, no speculative
-   prefetch.
-3. **PDF preview works inside the pane.** PDF bytes stream through the API and render with PDF.js,
-   not by handing the client a local path.
-4. **Storage stays behind a server seam.** The client must not care whether the source is mock,
-   local disk, SharePoint, Blob, or a DMS.
-
-## Current State
-
-- **Done now:** requirements, architecture, client design, Office constraints, testing strategy,
-  delivery plan, and decision log.
-- **Not in the repo yet:** `src/Server`, `src/Client`, `tests`, `manifest`, screenshots, or a
-  sideloadable add-in.
-- **Next proof point:** Phase 2 delivers the thinnest end-to-end slice with mock data in a real
-  Excel task pane.
+- `src/Server` — ASP.NET Core API. `FoldersController` / `PdfsController` talk only to
+  `IFolderProvider` / `IPdfProvider`. `SelectableStorageProvider` is the shipped implementation: it
+  reads whatever folder `FolderSourceState` currently holds, resolves every path underneath that
+  root (rejecting traversal), and streams PDF bytes back. `WindowsFolderBrowseService` drives the
+  native picker. `MockFolderProvider` / `MockPdfProvider` exist for tests, not for the running app.
+- `src/Client` — vanilla TypeScript + Vite. `state/` holds the store/reducer that drives lazy
+  loading and caching; `components/` renders the tree and viewer from that state and never talks to
+  storage directly; `services/` is the only layer that calls the API; `pdf/` isolates `pdfjs-dist`
+  behind `IPdfDocumentService`; `office/` isolates `Office.*` — nothing else in the client imports it.
+- Full detail: [docs/02-architecture.md](docs/02-architecture.md) (layers, API, provider seam) and
+  [docs/03-client.md](docs/03-client.md) (client structure, rendering).
 
 ## Running Locally & Testing in Excel
 
@@ -57,18 +54,29 @@ npx office-addin-debugging start ../../manifest/manifest.dev.xml --no-debug
 ```
 
 Excel launches with the add-in registered — click **PDF Explorer** on the Home ribbon tab to open
-the task pane. To unregister: `npx office-addin-debugging stop ../../manifest/manifest.dev.xml`
-(same directory).
+the task pane, then **Browse** to pick a folder with some PDFs in it. To unregister:
+`npx office-addin-debugging stop ../../manifest/manifest.dev.xml` (same directory).
 
 If the pane shows an "ADD-IN ERROR / network connectivity" dialog, its own Retry button is
 unreliable — close the task pane and click **PDF Explorer** again instead. Full prerequisites
 (dev certs, WebView2, manifest validation, cache clearing) are in the `office-addin-dev` skill.
 
+## Testing
+
+```bash
+dotnet test                            # server: xUnit
+npm --prefix src/Client test           # client: Vitest + jsdom
+npm --prefix src/Client run lint       # eslint + tsc --noEmit
+```
+
+`tests/Client.Tests/architecture.test.ts` enforces the layer boundaries above (Office.js isolation,
+PDF.js isolation) as an automated check, not just a convention.
+
 ## Read In This Order
 
-- [docs/reviewer-guide.md](docs/reviewer-guide.md) — one-page reviewer summary
 - [docs/01-requirements.md](docs/01-requirements.md) — numbered source of truth
 - [docs/02-architecture.md](docs/02-architecture.md) — layers, API, provider seam
+- [docs/03-client.md](docs/03-client.md) — client structure and PDF rendering
 - [docs/04-office.md](docs/04-office.md) — Excel task-pane constraints that kill naive designs
 - [docs/06-delivery.md](docs/06-delivery.md) — phases, proof points, traceability
 - [docs/decisions.md](docs/decisions.md) — why the current choices were made
@@ -81,15 +89,15 @@ Four constraints drive nearly every decision:
 
 1. **The task pane is not a normal browser tab.** HTTPS, CSP, iframe hosting, and webview variance
    are first-order constraints.
-2. **The client cannot load enterprise storage directly.** No filesystem access, no trusted local
-   paths, and no client-side credentials.
+2. **The client cannot load storage directly.** No filesystem access, no trusted local paths, and
+   no client-side credentials — the client only ever talks to the API.
 3. **The tree cannot scale if it loads recursively.** Large hierarchies force one-level, on-demand
    loading and caching.
-4. **A POC still has to prove the right thing.** "Works in a browser" is not success if it fails in
-   Excel.
+4. **Swapping the storage backend must not touch the client.** `SelectableStorageProvider` reads a
+   real Windows folder today; replacing it with SharePoint, Blob, or a DMS is a server-side change
+   behind the same two interfaces (see the `add-storage-provider` skill).
 
 ## Contributor Notes
 
-The repository is set up for agent-assisted development, but those mechanics are intentionally kept
-out of the reviewer path. If you are implementing Phase 2 or later, start with [CLAUDE.md](CLAUDE.md)
-for rules, commands, and the contributor workflow.
+The repository is set up for agent-assisted development. If you are extending this add-in, start
+with [CLAUDE.md](CLAUDE.md) for the non-negotiable rules, commands, and contributor workflow.

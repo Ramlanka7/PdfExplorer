@@ -1,250 +1,167 @@
-# Architecture, API, and providers
+# Architecture — and why it's built this way
 
-> **RATIFIED 2026-08-25.** Phase 1 closed. Changing anything below means a new entry in
-> [decisions.md](decisions.md), not an edit in place.
+Every choice below traces back to one constraint: **the Excel task pane cannot touch storage
+directly.** It's a sandboxed browser iframe — no filesystem access, no credentials allowed in it,
+HTTPS-only, Excel's own CSP. A server sits in between, and the rest of the design is about making
+that boundary earn its keep instead of just existing.
 
-## Layering
+## The shape of it
 
 ```
         Excel host
             |
    +--------v---------------------------------+
    |  Task pane (browser iframe, HTTPS)        |
-   |  office/      Office.onReady, host info   |  <- only place Office.* appears
-   |  app/         bootstrap, store, wiring    |
-   |  components/  App, FolderTree, PdfViewer  |  <- no fetch, no Office, no pdfjs
-   |  services/    FolderService, PdfService   |  <- HTTP boundary, DTO -> view model
-   |  pdf/         PdfDocumentService (pdf.js) |  <- only place pdfjs-dist appears
+   |  components/  tree + viewer UI            |
+   |  services/    the only layer that calls   |
+   |               the API                     |
+   |  office/      Office.js lives only here   |
+   |  pdf/         PDF.js lives only here      |
    +-----|-------------------------------------+
          | HTTPS + JSON / application/pdf
    +-----v-------------------------------------+
    |  ASP.NET Core (.NET 10)                    |
    |  Controllers/  thin HTTP, no logic          |
-   |  Services/     orchestration, validation,   |
-   |                caching, mapping to DTOs     |
-   |  Providers/    IFolderProvider,             |  <- the storage seam
-   |                IPdfProvider (+ Mock, Local) |
-   |  Models/       domain + DTOs                |
+   |  Providers/    IFolderProvider,             |
+   |                IPdfProvider — the storage   |
+   |                seam                         |
    +-----|--------------------------------------+
-   Mock data | Local FS | SharePoint | OneDrive | Blob | DMS | REST
+   A local folder today | SharePoint / Blob / a DMS tomorrow
 ```
 
-**Dependency rule (`NFR-CODE-01`):** arrows point inward and downward only. `Providers` may
-reference `Models`; `Models` references nothing. A component may not reach past `services/` to
-`fetch`. `services/` may not import from `components/`.
+The client owns the UI and what's currently expanded. The server owns storage, credentials, and
+what an ID actually means. The client never sees a real file path — only an opaque ID the server
+issued.
 
-| Concern | Client | Server |
-| --- | --- | --- |
-| Tree structure and expansion state | ✅ owns | ❌ stateless |
-| Which items exist under a folder | ❌ asks | ✅ owns |
-| Caching loaded children | ✅ session cache (`FR-LAZY-03`) | optional provider-level cache |
-| PDF bytes | ❌ never has a path | ✅ streams them |
-| Storage credentials | ❌ never (`NFR-SEC-05`) | ✅ owns |
-| ID meaning | ❌ opaque token (`FR-DATA-07`) | ✅ resolves it |
-| Rendering | ✅ PDF.js | ❌ |
-| Office host integration | ✅ `office/` only | ❌ |
+## Why a server sits in the middle
 
-The client cannot reach a file share, SharePoint, or Blob storage directly without either exposing
-credentials to the browser or fighting CORS and CSP. A server mediator solves the security boundary
-and the storage abstraction at once.
+The pane can't reach a file share, SharePoint, or Blob storage on its own without either putting
+credentials in the browser or fighting Excel's CORS/CSP rules. Doing it server-side solves both at
+once: one place holds credentials, one place validates every ID before it touches a file.
 
-**The four seams** — storage (`IFolderProvider`/`IPdfProvider`), transport (`FolderService`/
-`PdfService`), rendering (`IPdfDocumentService`), host (`OfficeHost`). These are the only interfaces
-justified up front (`NFR-CODE-06`). Anything else needs a reason at the moment it is written.
+## Why storage sits behind an interface, not built into the app
 
-## Data models
+The UI only ever asks for three things: root items, a folder's immediate children, or a PDF's
+bytes. It has no idea whether the answer comes from a local folder, SharePoint, or Blob storage —
+that's `IFolderProvider` / `IPdfProvider`, detailed under **Provider abstractions** below. Today the
+real implementation reads a Windows folder the user picks; swapping in another backend means
+implementing those two interfaces and registering it — **zero UI changes**. That's the thing to
+demo if someone asks "how would you add SharePoint here?"
 
-```csharp
-public enum ExplorerItemType { Folder, Pdf }
+## Why the tree loads one level at a time
 
-public sealed record ExplorerItem(
-    ExplorerItemId Id,       // opaque, provider-issued
-    string Name,             // display name, untrusted
-    ExplorerItemType Type,
-    bool HasChildren,        // folders only; false for PDFs
-    ExplorerItemId? ParentId);
+Loading a whole folder tree up front doesn't scale — a real file share can have hundreds of
+thousands of entries. So the client asks for root items only, then asks again for one folder's
+children only when the user expands it, and caches what it already loaded. No recursive walk,
+anywhere, ever.
 
-public sealed record PdfContent(Stream Content, string FileName, long? Length, string ContentType);
-```
+## Why Office.js and PDF.js are each walled into their own folder
 
-```ts
-type ItemId = string & { readonly __brand: 'ItemId' };
-type LoadState = 'not-loaded' | 'loading' | 'loaded' | 'failed';   // FR-LAZY-05
-
-interface TreeNode {
-  readonly id: ItemId;
-  readonly name: string;
-  readonly type: 'folder' | 'pdf';
-  readonly hasChildren: boolean;
-  readonly parentId: ItemId | null;
-  readonly depth: number;
-}
-```
-
-The client's DTO type is defined once, in `services/`, and mapped to `TreeNode` at that boundary —
-components never see a raw API shape.
-
-## Project structure
-
-```
-PdfExplorer.sln
-manifest/            manifest.xml (+ manifest.dev.xml for sideload)
-src/Server/
-  wwwroot/           built client bundle (production)
-  Controllers/       FoldersController, PdfsController
-  Services/          ExplorerService, PdfDeliveryService
-  Providers/         IFolderProvider, IPdfProvider, Mock/, Local/
-  Models/            domain records + Dtos/
-  Infrastructure/    error envelope, logging, DI extensions
-src/Client/          Vite project; builds into src/Server/wwwroot
-  components/        App, FolderTree, FolderNode, PdfNode, PdfViewer, Toolbar
-  services/          folderService, pdfService, http, dtos
-  state/             store, actions, selectors, types
-  office/            officeHost, officeReady
-  pdf/               pdfDocumentService (pdfjs-dist), pageRenderer
-  taskpane.html      module entry + nomodule unsupported-host fallback
-tests/Server.Tests/  tests/Client.Tests/
-```
-
-One server project, one client project, two test projects. Splitting into Domain/Application/
-Infrastructure assemblies is not justified at this size and can be done later.
+`office/` is the only place that imports `Office.*`; `pdf/` is the only place that imports
+`pdfjs-dist`. Two reasons: the task-pane host has real quirks (see [04-office.md](04-office.md))
+that shouldn't leak into ordinary UI code, and either library can now be swapped or mocked in tests
+without touching anything else — which is why the test suite runs without Excel or a real PDF file.
 
 ---
 
 ## API contract
 
-Base path `/api`. JSON in, JSON out, except PDF content. `async` end to end, honouring client
-disconnect via `CancellationToken` (`NFR-CODE-03`).
+Base path `/api`. Three endpoints, one response shape:
 
-| Endpoint | Returns | Requirements |
-| --- | --- | --- |
-| `GET /api/folders/root` | Root items. Never recursive. | `FR-LAZY-01`, `DOD-12` |
-| `GET /api/folders/{folderId}/children` | Immediate children only. `404` if unknown or not visible. | `FR-EXP-04`, `FR-LAZY-02` |
-| `GET /api/pdfs/{pdfId}/content` | The bytes. | `FR-DATA-03` |
-
-Both folder endpoints return the same envelope, and accept `?cursor=&limit=` which **v1 providers
-may ignore** — clients must tolerate a non-null `nextCursor` (`FR-DATA-08`):
+| Endpoint | Returns |
+| --- | --- |
+| `GET /api/folders/root` | Root items only — never recursive |
+| `GET /api/folders/{folderId}/children` | That folder's immediate children only |
+| `GET /api/pdfs/{pdfId}/content` | The PDF bytes |
 
 ```json
 {
   "items": [
-    { "id": "p_contract_a", "name": "Contract A.pdf", "type": "pdf",    "hasChildren": false, "parentId": "f_contracts" },
-    { "id": "f_2026",       "name": "2026",           "type": "folder", "hasChildren": true,  "parentId": "f_contracts" }
+    { "id": "p_contract_a", "name": "Contract A.pdf", "type": "pdf", "hasChildren": false, "parentId": "f_contracts" }
   ],
   "nextCursor": null
 }
 ```
 
-| Field | Notes |
-| --- | --- |
-| `id` | Opaque, provider-issued, URL-safe. Client must not parse it (`FR-DATA-07`). |
-| `name` | Display name. **Untrusted** — render as text (`NFR-SEC-02`). |
-| `type` | `"folder"` \| `"pdf"`. Closed set; unknown values ignored by the client. |
-| `hasChildren` | Drives the expand chevron (`FR-EXP-06`). `false` for PDFs. |
-| `parentId` | `null` at root. |
-
-Non-PDF files are filtered server-side and never appear. A response **never** contains
-grandchildren.
-
-PDF content sets `Content-Type: application/pdf`, `Content-Disposition: inline; filename="..."`
-(RFC 6266 encoded), `X-Content-Type-Options: nosniff`, `Cache-Control: private, max-age=60`, and
-supports range requests where the provider can (`NFR-SEC-07`).
+`id` is opaque — issued by the provider, meaningless to the client, never a real path. `name` is
+untrusted display text, rendered with `textContent`, never `innerHTML`. Non-PDF files are filtered
+out before the client ever sees them.
 
 ### Error envelope
 
-Every non-2xx returns this shape. The message is **safe to display**; detail stays in the log
-(`NFR-ERR-06`). `correlationId` is echoed in server logs (`NFR-ERR-05`) and encodes nothing
-sensitive.
+Every failure — folder not found, PDF not found, an invalid folder source, storage unavailable —
+comes back in the same shape, so the client has one place that handles errors instead of guessing
+from a string:
 
 ```json
 { "error": { "code": "FOLDER_NOT_FOUND", "message": "That folder is no longer available.", "correlationId": "0HN7…" } }
 ```
 
-| Code | HTTP | Client behaviour |
-| --- | --- | --- |
-| `FOLDER_NOT_FOUND` | 404 | Mark node failed, offer refresh of parent |
-| `PDF_NOT_FOUND` | 404 | "This file is no longer available." No retry. |
-| `PDF_INVALID` | 415 | "This file isn't a readable PDF." No retry. |
-| `UNAUTHORIZED` | 401 | Surface sign-in requirement (`NFR-ERR-01`) |
-| `FORBIDDEN` | 403 | "You don't have access to this item." No retry. |
-| `UPSTREAM_UNAVAILABLE` | 502/503 | Retry with backoff (`NFR-ERR-04`) |
-| `INTERNAL` | 500 | Generic message + retry |
+The message is safe to show as-is; anything sensitive (a path, a stack trace) stays server-side
+behind the `correlationId`. A closed set of typed exceptions maps to a closed set of codes — nothing
+storage-specific ever reaches this layer:
 
-IDs are validated and canonicalised before touching a provider (`NFR-SEC-06`). An unmatched `/api`
-route returns the envelope, not the task-pane HTML fallback. Endpoint shape changes are breaking —
-update this doc and the client DTO in one change.
+| Code | Meaning | Retry? |
+| --- | --- | --- |
+| `SOURCE_INVALID` | The picked folder doesn't exist or isn't readable | No — pick another |
+| `FOLDER_NOT_FOUND` / `PDF_NOT_FOUND` | Item is gone or the ID is unknown | No |
+| `FORBIDDEN` | Not permitted — auth isn't built in v1, but this is where it plugs in | No |
+| `UPSTREAM_UNAVAILABLE` | Storage is temporarily down | Yes |
+| `INTERNAL` | Anything unexpected | Yes |
 
 ---
 
 ## Provider abstractions
 
-The single seam that keeps the UI ignorant of storage (`FR-DATA-05`, `DOD-14`, `DOD-15`).
+The interfaces the rest of the app is built around:
 
 ```csharp
 public interface IFolderProvider
 {
-    Task<FolderPage> GetRootItemsAsync(ItemQuery query, CancellationToken cancellationToken);
-    Task<FolderPage> GetChildrenAsync(ExplorerItemId folderId, ItemQuery query, CancellationToken cancellationToken);
+    Task<FolderPage> GetRootItemsAsync(ItemQuery query, CancellationToken ct);
+    Task<FolderPage> GetChildrenAsync(ExplorerItemId folderId, ItemQuery query, CancellationToken ct);
 }
 
 public interface IPdfProvider
 {
-    Task<PdfContent> OpenPdfAsync(ExplorerItemId pdfId, CancellationToken cancellationToken);
+    Task<PdfContent> OpenPdfAsync(ExplorerItemId pdfId, CancellationToken ct);
 }
-
-// Pagination-ready from day one; v1 providers may ignore Cursor/Limit (FR-DATA-08).
-public sealed record ItemQuery(string? Cursor = null, int? Limit = null);
-public sealed record FolderPage(IReadOnlyList<ExplorerItem> Items, string? NextCursor);
 ```
 
-Two interfaces, not one and not three: folders and documents are the only two things the UI asks
-for. `OpenPdfAsync` returns a stream the caller disposes — providers must not buffer whole
-documents in memory (`NFR-PERF-05`).
+Two interfaces, not one and not three — folders and documents are the only two things the UI asks
+for. `SelectableStorageProvider` implements both against a real Windows folder today: it turns
+every ID back into a path, canonicalises it, and rejects anything that resolves outside the
+configured root before touching disk. A mock implementation exists purely for tests, so the suite
+never touches a real file.
 
-**Failure contract.** Providers throw these four and never leak storage-specific exception types
-(`SharePointException`, `IOException`, …) past their own boundary; the service layer maps them to
-the envelope above.
+Providers throw four exception types and never leak a storage-specific one past their own boundary:
+`ItemNotFoundException`, `ItemAccessDeniedException`, `ProviderUnavailableException`,
+`InvalidPdfException` (plus `InvalidSourceException` for an unusable picked folder). The service
+layer maps these to the error envelope above.
 
-| Exception | Meaning |
-| --- | --- |
-| `ItemNotFoundException` | ID unknown, deleted, or not visible |
-| `ItemAccessDeniedException` | Authenticated but not permitted |
-| `ProviderUnavailableException` | Upstream down, timeout, transient |
-| `InvalidPdfException` | Retrieved, but not a usable PDF |
-
-**Implementations.** `MockFolderProvider`/`MockPdfProvider` (phase 2) — in-memory tree plus a small
-embedded PDF, deterministic, no I/O (`FR-DATA-04`). `LocalFileSystem*` (phase 4) — real files under
-a configured root; **this is where path-traversal defence lives** (`NFR-SEC-06`). SharePoint /
-OneDrive / Blob / DMS / REST are not built in v1; the point is that adding one touches only
-`Providers/` and DI registration.
-
-Selection is by configuration (`FR-DATA-06`): `{ "Explorer": { "Provider": "Mock" } }` in
-`appsettings.json`, resolved by one `services.AddExplorerProvider(configuration)` extension.
-
-**ID discipline.** Provider IDs are opaque tokens (`FR-DATA-07`). A filesystem path, SharePoint
-drive item path, or blob key must never reach the client verbatim. The provider issues the ID and
-is the only component that can interpret it. The local provider maps ID → path through its own
-table or a signed form, then canonicalises and verifies the result is inside the configured root
-before any file access. An ID that fails validation is `ItemNotFoundException` — never an error
-that reveals why.
-
-**Adding a provider:** implement both interfaces without changing them, return immediate children
-only, set `HasChildren` cheaply (prefer an optimistic `true` over an expensive probe, and document
-the choice), map failures to the four exceptions, keep credentials server-side, add provider tests,
-and change **zero** client files. If you can't, the seam is wrong — fix the seam. The
-`add-storage-provider` skill walks this end to end.
+**Adding a different backend** (SharePoint, Blob, a DMS): implement both interfaces, map its
+failures to those exception types, register it. If that touches a single client file, the seam has
+a hole — fix the seam, not the workaround. The `add-storage-provider` skill walks this end to end.
 
 ---
 
-## Technical risks
+## Risks this design accounts for
 
-| # | Risk | Mitigation | Req |
-| --- | --- | --- | --- |
-| R1 | Task-pane CSP blocks the PDF.js worker or `blob:`/`data:` URLs | Vite emits the worker as a same-origin hashed asset via `new URL(..., import.meta.url)`. **Still verify in real Excel** | FR-OFC-05 |
-| R2 | Excel on the web is a cross-origin iframe; cookies blocked as third-party | Same-origin API; any future token travels in an `Authorization` header, never a cookie | FR-OFC-05 |
-| R3 | Office requires HTTPS, including in dev | Dev certs via `office-addin-dev-certs` (`office-addin-dev` skill) | FR-OFC-05 |
-| R4 | Old Excel builds use the IE/Edge-legacy webview | ES2020 baseline; `type="module"` + a `nomodule` static unsupported-host message | FR-OFC-04 |
-| R5 | Large PDFs rasterised page-by-page exhaust task-pane memory | Render on demand, destroy superseded documents | NFR-PERF-05/06 |
-| R6 | Naive local provider allows path traversal via crafted IDs | Opaque IDs mapped server-side; canonicalise and root-check | NFR-SEC-06 |
-| R7 | A folder with 100k children returned in one response | Pagination-ready signature from day one, even if unused | FR-DATA-08 |
-| R8 | Narrow task pane (~320 px) makes two panes unusable | Design at the narrow width first; collapsible left pane if needed | FR-UI-09 |
+| Risk | How it's handled |
+| --- | --- |
+| Excel's CSP blocks the PDF.js worker | Served as a same-origin asset, never from a CDN |
+| Excel on the web treats the pane as third-party — cookies unreliable | Same-origin API; any future auth token goes in a header, not a cookie |
+| Excel requires HTTPS, even in dev | Dev certs via `office-addin-dev-certs` |
+| Old Excel builds use a legacy IE-based webview | Modern JS baseline + a static fallback message for unsupported hosts |
+| Large PDFs could exhaust task-pane memory | Pages render on demand; the previous document is destroyed on selection |
+| Crafted IDs could walk outside the folder root | IDs are opaque tokens; every resolved path is canonicalised and root-checked |
+| A folder could return huge numbers of children in one response | API is pagination-ready even though v1 doesn't need it yet |
+| The task pane can be very narrow | Designed to stay usable down to ~320px |
+
+---
+
+## Where the deeper reasoning lives
+
+This page is the short version of "why." For the full trade-off writeups — what was given up, what
+was ruled out, and why — see [decisions.md](decisions.md). For the complete, numbered requirement
+list these choices satisfy, see [01-requirements.md](01-requirements.md).
