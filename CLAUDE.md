@@ -49,6 +49,10 @@ of these; edit it directly if the reasoning changes.
 13. **Dependency injection on the server.** No service location, no `new SomeProvider()` in a controller.
 14. **Errors are typed and mapped**, never string-matched. One error envelope, one mapping layer.
 15. **No duplicated logic** between client and server, or across components. Two caches means two truths.
+16. **Follow SOLID, DRY, and YAGNI.** Not new work — rules 4, 6, and 13 already are dependency
+    inversion, and the two-interface provider seam already is interface segregation. See
+    [docs/02-architecture.md](docs/02-architecture.md#coding-principles-this-design-follows) for
+    where each principle actually shows up in this codebase, not just a claim that it's followed.
 
 If a rule is wrong, say so and change it here.
 

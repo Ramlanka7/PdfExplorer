@@ -1,7 +1,11 @@
 # Requirements
 
-Every requirement has an ID so tests and code comments can point at exactly what they prove (e.g.
-`Expanding_a_folder_loads_only_immediate_children_FR_LAZY_02`). Edit this file directly if a
+**The requirement:** a user should never have to leave Excel to find, open, and view a PDF. They
+browse a folder hierarchy and preview PDF files inside the task pane.
+
+Everything below breaks that one requirement into ID'd pieces (`FR-EXP-03`, `NFR-SEC-02`, ...) so
+tests and code comments can point at exactly which piece they prove — e.g.
+`Expanding_a_folder_loads_only_immediate_children_FR_LAZY_02`. Edit this file directly if a
 requirement changes. What's actually built and verified is tracked separately in
 [06-delivery.md](06-delivery.md), not here.
 

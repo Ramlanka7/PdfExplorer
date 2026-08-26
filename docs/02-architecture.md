@@ -145,6 +145,25 @@ a hole — fix the seam, not the workaround. The `add-storage-provider` skill wa
 
 ---
 
+## Coding principles this design follows
+
+Not a checklist added after the fact — each letter of SOLID maps to something already built here:
+
+| Principle | Where it actually shows up |
+| --- | --- |
+| **S** — Single Responsibility | `FoldersController`/`PdfsController` do thin HTTP only, nothing else; `FolderTree` only renders a tree, `PdfViewer` only renders a document — neither knows the other's job. |
+| **O** — Open/Closed | Adding a storage backend means writing a new class against `IFolderProvider`/`IPdfProvider` and registering it — no existing provider, controller, or client file changes. That's `FR-DATA-05` in practice, not just on paper. |
+| **L** — Liskov Substitution | `SelectableStorageProvider` and the mock providers are drop-in replacements for each other behind the same two interfaces — callers can't tell which one they got, and nothing behaves differently in a way that would surprise them. |
+| **I** — Interface Segregation | Two narrow interfaces, not one broad "storage" interface: `IFolderProvider` for tree structure, `IPdfProvider` for bytes. Nothing that only needs one is forced to depend on both. |
+| **D** — Dependency Inversion | Controllers and the client depend on the two interfaces, never on a concrete provider; `Program.cs` is the one place a concrete implementation gets wired in. The client mirrors this: `PdfViewer` depends on `IPdfDocumentService`, never on `pdfjs-dist` directly. |
+
+Two more that show up as much by what's **absent**: no duplicated logic between client and server
+or across components (DRY), and no generic `IStorageService`, repository layer, or plugin system
+that nothing here actually needs yet (YAGNI) — the two provider interfaces are the one abstraction
+this size of app justifies, not a starting point for more of them.
+
+---
+
 ## Risks this design accounts for
 
 | Risk | How it's handled |

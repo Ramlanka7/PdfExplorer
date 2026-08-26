@@ -1,8 +1,13 @@
 # PdfExplorer
 
-An **Excel task-pane add-in** (Office.js + .NET 10 / ASP.NET Core) for browsing a folder hierarchy
-and previewing PDFs without leaving Excel. Two panes: a lazy-loading folder tree on the left, a
-PDF.js viewer on the right — running inside a real Excel task pane, not a browser tab.
+**The business problem:** analysts building a workbook in Excel routinely need to check the source
+PDF behind a number — a contract, an invoice, a filing — and today that means alt-tabbing to a file
+browser and a separate PDF reader, losing their place in the workbook every time.
+
+PdfExplorer removes that context switch. It's an **Excel task-pane add-in** (Office.js + .NET 10 /
+ASP.NET Core) for browsing a folder hierarchy and previewing PDFs without leaving Excel. Two panes:
+a lazy-loading folder tree on the left, a PDF.js viewer on the right — running inside a real Excel
+task pane, not a browser tab.
 
 ## What It Does
 
