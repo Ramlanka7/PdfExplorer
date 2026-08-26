@@ -47,6 +47,19 @@ for (const [name, value] of Object.entries(shims)) {
   }
 }
 
+/**
+ * pdf.js computes document fingerprints with Uint8Array.prototype.toHex(), a TC39 addition
+ * newer than this Node.js version. WebView2 (the real host, per D5) already ships it; only the
+ * test runtime needs a stand-in.
+ */
+type Uint8ArrayWithHex = Uint8Array & { toHex?: () => string };
+
+if (typeof (Uint8Array.prototype as Uint8ArrayWithHex).toHex !== 'function') {
+  (Uint8Array.prototype as Uint8ArrayWithHex).toHex = function (this: Uint8Array): string {
+    return Array.from(this, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  };
+}
+
 afterEach(() => {
   document.body.replaceChildren();
 });

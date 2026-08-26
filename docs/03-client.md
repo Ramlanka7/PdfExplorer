@@ -22,7 +22,7 @@ tree and the viewer change without ever touching each other.
 
 The whole client is two components with one interaction between them, and the state fits in a
 handful of fields. A framework's runtime is bundle weight and CSP/supply-chain surface for a
-problem this small doesn't have (see [decisions.md](decisions.md) D1 for the trade-off accepted).
+problem this small doesn't have (see [decisions.md](decisions.md) for the trade-off accepted).
 So it's one plain object plus a subscribe/notify pair — nodes and their children in flat, ID-keyed
 maps rather than a nested tree, so expanding a deep folder touches two small maps instead of
 cloning a spine of nested objects. The exact shape lives in `state/types.ts`; nothing here should

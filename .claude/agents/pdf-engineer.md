@@ -23,10 +23,10 @@ The viewer knows nothing about folders, parents, or traversal (`FR-UI-02`). It r
   same-origin build asset. A CDN `workerSrc` is the single most likely way to break this add-in in
   Excel while it works fine in a browser tab.
 - There is no native PDF plugin. `<iframe src="file://...">` and `<embed>` are not options
-  (rule 14). Bytes arrive from `/api/pdfs/{id}/content`.
-- Verify rendering inside **Excel on Windows** (decision D5), not only in a browser. A browser-only
-  check proves nothing about `FR-OFC-05`, and the worker is exactly the thing that passes in a tab
-  and fails in the pane.
+  (rule 10). Bytes arrive from `/api/pdfs/{id}/content`.
+- Verify rendering inside **Excel on Windows** (see [decisions.md](../../docs/decisions.md)), not
+  only in a browser. A browser-only check proves nothing about `FR-OFC-05`, and the worker is
+  exactly the thing that passes in a tab and fails in the pane.
 
 ## Lifecycle and memory — where this goes wrong
 

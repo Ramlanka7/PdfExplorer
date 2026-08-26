@@ -19,7 +19,10 @@ export default defineConfig({
     },
   },
   test: {
-    include: [resolve(repoRoot, 'tests/Client.Tests/**/*.test.ts')],
+    // tinyglobby treats backslash as a glob escape character, not a path separator, so the
+    // pattern must use forward slashes even though path.resolve() returns native (backslash)
+    // separators on Windows.
+    include: [resolve(repoRoot, 'tests/Client.Tests/**/*.test.ts').replace(/\\/g, '/')],
     environment: 'jsdom',
     setupFiles: [resolve(repoRoot, 'tests/Client.Tests/setup.ts')],
     restoreMocks: true,

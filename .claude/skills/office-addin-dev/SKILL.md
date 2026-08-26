@@ -5,25 +5,24 @@ description: Run, sideload, debug, and validate the Excel add-in on Windows — 
 
 # Running the add-in in Excel on Windows
 
-**Target host: Excel on Windows (Microsoft 365 + WebView2 Runtime)** — decision D5. Several
-requirements can be verified nowhere else (`DOD-02`, `DOD-03`, `DOD-09`, `DOD-11`, `FR-OFC-04`). A
-browser tab does not substitute, and neither does Excel on the web. Do not improvise these steps —
-inconsistent sideloading is the most common source of "it worked yesterday".
+**Target host: Excel on Windows (Microsoft 365 + WebView2 Runtime)** — see `docs/decisions.md`. A
+browser tab or Excel on the web doesn't substitute for `DOD-02`, `DOD-03`, `DOD-09`, `DOD-11`,
+`FR-OFC-04`. Inconsistent sideloading is the most common source of "it worked yesterday" — follow
+these steps rather than improvising.
 
 ## 0. Prerequisites
 
 - **Microsoft 365 Excel on Windows** with the **WebView2 Runtime** installed. Without it Excel falls
   back to the IE11 webview and you will get the unsupported-host message instead of the add-in
-  (correct behaviour per decision D5 — but check this first if the message appears unexpectedly).
+  (correct behaviour per `docs/decisions.md` — but check this first if the message appears unexpectedly).
 - .NET 10 SDK and Node.js on the machine running the app.
 - Confirm which webview you actually got: the bootstrap logs platform and host version via
   `OfficeHost`. Check that before debugging anything else.
 
-> **If you edit code on one machine and run Excel on another:** `localhost` in the manifest only
-> works when the app runs on the same machine as Excel. In a split setup the dev server must be
-> reachable from the Windows box by hostname or IP, that URL must be in the manifest **and** in
-> `<AppDomains>`, and the dev certificate must be trusted **on the Windows machine**. The simplest
-> arrangement by far is to run the dev server, the API, and Excel all on Windows.
+> **Editing on one machine, running Excel on another:** `localhost` in the manifest only works when
+> the app and Excel are on the same machine. In a split setup, the dev server must be reachable from
+> the Windows box by hostname/IP, that URL needs to be in the manifest **and** `<AppDomains>`, and
+> the dev cert must be trusted **on the Windows machine**. Simplest fix: run everything on Windows.
 
 ## 1. HTTPS dev certificates (once per machine)
 
@@ -53,42 +52,47 @@ undeclared domains are blocked, which presents as a pane that opens empty with n
 
 ```bash
 dotnet run --project src/Server              # API (Kestrel)
-npm --prefix src/Client run dev              # Vite: HTTPS, proxies /api to Kestrel (decision D3)
-npx office-addin-debugging start manifest/manifest.dev.xml
+npm --prefix src/Client run dev              # Vite: HTTPS, proxies /api to Kestrel (docs/decisions.md)
 ```
 
-The third command registers the add-in for development under
-`HKEY_CURRENT_USER\Software\Microsoft\Office\16.0\WEF\Developer\` and launches Excel with it loaded.
-To unregister:
+`office-addin-debugging` needs a `package.json` in the working directory, and this repo's is at
+`src/Client/`, not the root — run it from there, with a manifest path relative to that directory:
 
 ```bash
-npx office-addin-debugging stop manifest/manifest.dev.xml
+cd src/Client
+npx office-addin-debugging start ../../manifest/manifest.dev.xml --no-debug
 ```
 
-**Manual fallback** — trusted catalog, if the tooling misbehaves:
+Running it from the repo root fails with `ENOENT: no such file or directory, open
+'.../package.json'` — there is no root-level `package.json` to find. `--no-debug` skips the
+debugger-attach prompt for a plain "does it load" check; drop it when you actually want to attach.
 
-1. Put `manifest.dev.xml` in a shared folder (a local folder shared as `\\<machine>\<share>` works).
-2. Excel → File → Options → Trust Center → Trust Center Settings → Trusted Add-in Catalogs.
-3. Add the **share path** (not a drive letter), tick **Show in Menu**, OK.
-4. Restart Excel → Insert → My Add-ins → **Shared Folder** tab → pick the add-in.
+This registers the add-in for development under
+`HKEY_CURRENT_USER\Software\Microsoft\Office\16.0\WEF\Developer\` and launches Excel with it loaded.
+To unregister (same directory):
+
+```bash
+npx office-addin-debugging stop ../../manifest/manifest.dev.xml
+```
+
+**If the tooling misbehaves:** share `manifest.dev.xml` in a folder, add that share path (not a
+drive letter) under Excel → File → Options → Trust Center → Trusted Add-in Catalogs, tick **Show in
+Menu**, restart Excel, then Insert → My Add-ins → **Shared Folder**.
 
 ## 4. Debug
 
-**VS Code / direct attach** — the primary loop:
+**VS Code / direct attach** — the primary loop, run from `src/Client` like step 3:
 
 ```bash
-npx office-addin-debugging start manifest/manifest.dev.xml --debug-method direct
+npx office-addin-debugging start ../../manifest/manifest.dev.xml --debug-method direct
 ```
 
 **Microsoft Edge DevTools** — install the **Microsoft Edge DevTools Preview** app from the Microsoft
-Store, run it with the add-in loaded, and attach to the running task-pane target. This is the
-practical way to get a real console, network panel, and DOM inspector against WebView2.
+Store and attach to the running task-pane target for a real console/network/DOM inspector against
+WebView2. The task pane's corner menu also has an attach-debugger entry when sideloaded for dev —
+exact wording varies by Office build.
 
-The task pane's personality menu (the control in the pane's corner) also exposes an attach-debugger
-entry when the add-in is sideloaded for development. Exact wording varies by Office build — check
-what your install actually shows rather than assuming.
-
-**Server-side** — watch the ASP.NET Core log and match on the correlation ID from the error envelope
+**Server-side** — watch the ASP.NET Core log and match the correlation ID from the error envelope
 (`NFR-ERR-05`).
 
 ## 5. Clear the cache when a stale build persists
@@ -99,9 +103,9 @@ Excel caches add-in assets aggressively. After **any** manifest change:
 2. Delete the contents of `%LOCALAPPDATA%\Microsoft\Office\16.0\Wef\`.
 3. Restart Excel.
 
-A manifest change without a cache clear is the second most common source of phantom failures, right
-behind an untrusted certificate. If you are on an older webview, also clear the
-`Microsoft.Win32WebViewHost` package cache under `%LOCALAPPDATA%\Packages\`.
+Skipping this after a manifest change is the second most common source of phantom failures, right
+behind an untrusted certificate. On an older webview, also clear the `Microsoft.Win32WebViewHost`
+package cache under `%LOCALAPPDATA%\Packages\`.
 
 ## Diagnosing a broken pane
 
@@ -110,13 +114,7 @@ behind an untrusted certificate. If you are on an older webview, also clear the
 | Unsupported-host message on a machine that should work | Missing WebView2 Runtime, or a perpetual Office build | Install the WebView2 Runtime; confirm the Office build (step 0) |
 | Pane blank, no network activity | Manifest URL wrong, or domain not in `<AppDomains>` | Fix manifest, clear cache, restart |
 | Pane blank, certificate error in console | Dev certs missing or untrusted **on this machine** | Step 1 |
-| Loads in a browser, blank in Excel | CSP blocked a script or the PDF.js worker, or a CDN reference | Self-host the asset (`docs/03-client.md`, decision D1/D2) |
+| Loads in a browser, blank in Excel | CSP blocked a script or the PDF.js worker, or a CDN reference | Self-host the asset (`docs/03-client.md`, `docs/decisions.md`) |
 | PDF never renders, no error | PDF.js worker blocked by CSP | Same-origin `workerSrc` via `new URL(..., import.meta.url)` |
 | API calls fail from Excel but work in the browser | Dev server not reachable from the Excel machine (split setup) | Step 0 note — use a reachable host, not `localhost` |
 | Stale UI after a rebuild | Add-in cache | Step 5 |
-
-## Record the result
-
-Every run that verifies a manual requirement goes in the manual verification table of
-`docs/06-delivery.md`: date, Office build and webview, what was checked, result. An unlogged check
-did not happen.

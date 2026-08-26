@@ -10,9 +10,9 @@ they answer to below.
 | **Iframe execution** | No `window.open` assumptions, no top-level navigation, no reliance on being the top frame. |
 | **No filesystem access** | `file://`, UNC shares, and mapped drives are unreachable from JS. Bytes come from the API. |
 | **CSP** | Inline scripts and eval are restricted. Bundle everything; self-host workers and fonts. |
-| **CORS** | Designed out — the pane document and the API share one origin (D3). Never re-introduce a policy to work around a split deployment without a superseding decision. |
+| **CORS** | Designed out — the pane document and the API share one origin (see [decisions.md](decisions.md)). Don't re-introduce a policy to work around a split deployment without revisiting that decision. |
 | **Third-party cookie blocking** | Cookie sessions are unreliable in Excel on the web. Prefer bearer tokens in headers. |
-| **Webview variance** | WebView2 on Microsoft 365 Windows builds is the target. Perpetual builds or a missing runtime fall back to IE11, which is unsupported (D5) and must fail with a legible message, not a blank pane. |
+| **Webview variance** | WebView2 on Microsoft 365 Windows builds is the target. Perpetual builds or a missing runtime fall back to IE11, which is unsupported (see [decisions.md](decisions.md)) and must fail with a legible message, not a blank pane. |
 | **No PDF plugin** | The host's native viewer is unavailable to the pane. Rendering is our job (PDF.js). |
 | **Manifest gating** | Domains not listed in `<AppDomains>` may be blocked; only manifest-declared URLs load. |
 
